@@ -1,0 +1,86 @@
+import { DestroyRef, Injectable, effect, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { take } from 'rxjs';
+
+import { RealtimeTicketResponse } from './models';
+import { runtimeConfig } from './runtime-config';
+import { Session } from './session';
+import { SurebetApi } from './surebet-api';
+
+@Injectable({ providedIn: 'root' })
+export class RealtimeUpdates {
+  private readonly http = inject(HttpClient);
+  private readonly session = inject(Session);
+  private readonly api = inject(SurebetApi);
+  private readonly destroyRef = inject(DestroyRef);
+  private socket: WebSocket | null = null;
+  private reconnectTimer: number | null = null;
+  private refreshTimer: number | null = null;
+
+  readonly connected = signal(false);
+
+  constructor() {
+    effect(() => {
+      if (this.session.enabled && this.session.authenticated()) {
+        this.api.refresh('all');
+        this.connect();
+      } else {
+        this.disconnect();
+      }
+    });
+    this.destroyRef.onDestroy(() => this.disconnect());
+  }
+
+  private connect(): void {
+    if (this.socket || this.reconnectTimer !== null) return;
+    this.http
+      .post<RealtimeTicketResponse>(`${runtimeConfig.apiBaseUrl}/auth/realtime-ticket`, {})
+      .pipe(take(1))
+      .subscribe({
+        next: (response) => this.openSocket(response.websocket_path, response.ticket),
+        error: () => this.scheduleReconnect(),
+      });
+  }
+
+  private openSocket(path: string, ticket: string): void {
+    const url = new URL(path, window.location.origin);
+    url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    url.searchParams.set('ticket', ticket);
+    this.socket = new WebSocket(url);
+    this.socket.onopen = () => this.connected.set(true);
+    this.socket.onmessage = () => {
+      if (this.refreshTimer !== null) return;
+      this.refreshTimer = window.setTimeout(() => {
+        this.refreshTimer = null;
+        this.api.refresh();
+      }, 750);
+    };
+    this.socket.onerror = () => this.socket?.close();
+    this.socket.onclose = () => {
+      this.socket = null;
+      this.connected.set(false);
+      if (this.session.authenticated()) this.scheduleReconnect();
+    };
+  }
+
+  private scheduleReconnect(): void {
+    if (!this.session.authenticated() || this.reconnectTimer !== null) return;
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, 5000);
+  }
+
+  private disconnect(): void {
+    if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
+    if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
+    this.reconnectTimer = null;
+    this.refreshTimer = null;
+    if (this.socket) {
+      this.socket.onclose = null;
+      this.socket.close();
+      this.socket = null;
+    }
+    this.connected.set(false);
+  }
+}

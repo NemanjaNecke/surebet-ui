@@ -1,0 +1,263 @@
+<div class="portal-shell">
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="SureEdge početna">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <strong>Sure<span>Edge</span></strong>
+    </a>
+    <nav aria-label="Glavna navigacija">
+      <button [class.active]="marketView() === 'odds'" (click)="selectView('odds')">Najbolje kvote</button>
+      <button [class.active]="marketView() === 'surebets'" (click)="selectView('surebets')">
+        Surebetovi <span>{{ api.snapshot().opportunities.length }}</span>
+      </button>
+    </nav>
+    <div class="header-actions">
+      <span class="data-state" [class.preview]="api.mode() !== 'live'">
+        <i></i>{{ realtime.connected() ? 'Prenos uživo' : api.mode() === 'live' ? 'Aktuelni podaci' : 'Demo prikaz' }}
+      </span>
+      @if (session.enabled) {
+        <button class="sign-in" (click)="session.authenticated() ? session.logout() : session.login()">
+          {{ session.authenticated() ? 'Odjava' : 'Prijava' }}
+        </button>
+      }
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span></span> Srbija · Bosna i Hercegovina</p>
+        <h1>Pronađi najbolju kvotu.<br /><em>Iskoristi prednost.</em></h1>
+        <p class="hero-text">
+          Uporedi kvote uživo i kvote pre meča regionalnih kladionica. Za svaki ishod prikazujemo
+          najjaču cenu i proverene arbitražne prilike između različitih kladionica.
+        </p>
+        <div class="search-wrap">
+          <label class="hero-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+            <input
+              #searchBox type="search" autocomplete="off"
+              [value]="searchInput()"
+              placeholder="Traži tim, ligu, sport ili kladionicu"
+              (focus)="suggestionsOpen.set(searchInput().trim().length > 0)"
+              (input)="setSearch(searchBox.value)"
+            />
+            @if (searchInput()) { <button aria-label="Obriši pretragu" (click)="clearSearch()">×</button> }
+          </label>
+          @if (suggestionsOpen() && suggestions().length) {
+            <div class="search-suggestions" role="listbox" aria-label="Predlozi pretrage">
+              @for (suggestion of suggestions(); track suggestion.label) {
+                <button role="option" (click)="chooseSuggestion(suggestion.label)">
+                  <span>{{ suggestion.label }}</span><small>{{ suggestion.type }}</small>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="market-pulse">
+        <div class="pulse-heading"><span>Pregled ponude</span><strong><i></i> Povezano</strong></div>
+        <div class="pulse-number">{{ bookmakerCount() || api.snapshot().bookmakers.length }}</div>
+        <p>kladionica u poređenju</p>
+        <div class="pulse-row"><span>{{ api.snapshot().prematchEvents | number }}</span><small>događaja pre meča</small></div>
+        <div class="pulse-row"><span>{{ api.snapshot().liveEvents | number }}</span><small>događaja uživo</small></div>
+      </div>
+    </section>
+
+    @if (api.mode() !== 'live') {
+      <section class="preview-banner" role="status">
+        <div><strong>Demo podaci</strong><span>{{ api.errorMessage() }}</span></div>
+        <div class="preview-actions">
+          @if (session.enabled && !session.authenticated()) { <button class="primary" (click)="session.login()">Prijavi se</button> }
+          <button (click)="api.refresh('all')">Pokušaj ponovo</button>
+        </div>
+      </section>
+    }
+
+    <section class="market-board" id="markets">
+      <div class="board-heading">
+        <div>
+          <p class="section-label">REGIONALNI MONITOR KVOTA</p>
+          <h2>{{ marketView() === 'odds' ? 'Najbolje kvote trenutno' : 'Provereni surebetovi' }}</h2>
+          <p>
+            {{ marketView() === 'odds'
+              ? 'Najviša dostupna kvota za svaki ishod kod svih povezanih kladionica.'
+              : 'Pozitivan povrat raspoređen između najmanje dve različite kladionice.' }}
+          </p>
+        </div>
+        <button class="refresh" [disabled]="currentLoading()" (click)="refreshCurrent()">
+          <svg viewBox="0 0 24 24" [class.spinning]="currentLoading()"><path d="M20 6v5h-5M4 18v-5h5M18.5 9A7 7 0 0 0 6.6 6.5L4 11m16 2-2.6 4.5A7 7 0 0 1 5.5 15" /></svg>
+          {{ currentLoading() ? 'Osvežavanje' : scope() === 'prematch' ? 'Ažuriraj podatke pre meča' : 'Osveži uživo' }}
+        </button>
+      </div>
+
+      <div class="control-row">
+        <div class="view-tabs" role="tablist" aria-label="Vrsta prikaza">
+          <button role="tab" [attr.aria-selected]="marketView() === 'odds'" [class.active]="marketView() === 'odds'" (click)="selectView('odds')">
+            Najbolje kvote <span>{{ api.snapshot().bestOdds.length }}</span>
+          </button>
+          <button role="tab" [attr.aria-selected]="marketView() === 'surebets'" [class.active]="marketView() === 'surebets'" (click)="selectView('surebets')">
+            Surebetovi <span>{{ api.snapshot().opportunities.length }}</span>
+          </button>
+        </div>
+        <div class="scope-tabs" role="group" aria-label="Period ponude">
+          <button [class.active]="scope() === 'all'" (click)="setScope('all')">Sve</button>
+          <button [class.active]="scope() === 'live'" (click)="setScope('live')"><i></i> Uživo</button>
+          <button [class.active]="scope() === 'prematch'" (click)="setScope('prematch')">Pre meča</button>
+        </div>
+        <button class="filter-toggle" (click)="mobileFiltersOpen.set(!mobileFiltersOpen())">Filteri</button>
+      </div>
+
+      <div class="filters" [class.open]="mobileFiltersOpen()">
+        <div>
+          <span>Tržište</span>
+          <div class="filter-buttons">
+            @for (item of markets; track item) {
+              <button [class.active]="market() === item" (click)="setMarket(item)">{{ marketName(item) }}</button>
+            }
+          </div>
+        </div>
+        @if (marketView() === 'odds') {
+          <label class="select-wrap"><span>Sport</span>
+            <select #sportSelect (change)="setSport(sportSelect.value)">
+              @for (item of sports(); track item) { <option [value]="item" [selected]="sport() === item">{{ item === 'All' ? 'Svi sportovi' : item }}</option> }
+            </select>
+          </label>
+        } @else {
+          <div>
+            <span>Tip surebeta</span>
+            <div class="filter-buttons opportunity-kind-filter">
+              <button [class.active]="opportunityKind() === 'all'" (click)="setOpportunityKind('all')">Svi</button>
+              <button [class.active]="opportunityKind() === 'same-market'" (click)="setOpportunityKind('same-market')">Isto tržište</button>
+              <button class="cross-market-filter" [class.active]="opportunityKind() === 'cross-market'" (click)="setOpportunityKind('cross-market')">Cross-market</button>
+            </div>
+          </div>
+        }
+        <label class="select-wrap"><span>Po stranici</span>
+          <select #sizeSelect (change)="setPageSize(sizeSelect.value)">
+            @for (size of pageSizes; track size) { <option [value]="size" [selected]="pageSize() === size">{{ size }}</option> }
+          </select>
+        </label>
+        <div class="result-summary"><strong>{{ resultCount() }}</strong><span>rezultata</span></div>
+      </div>
+
+      @if (marketView() === 'odds') {
+        <div class="odds-grid">
+          @for (item of pagedBestOdds(); track item.id) {
+            <article class="event-card">
+              <div class="event-meta">
+                <span class="scope" [class.live]="item.scope === 'live'">{{ item.scope === 'live' ? '● UŽIVO' : 'PRE MEČA' }}</span>
+                <span>{{ sportName(item.sport) }}</span>
+                <time>{{ item.kickoff | date: 'dd.MM. · HH:mm' }}</time>
+              </div>
+              <p class="league">{{ item.league }}</p><h3>{{ item.fixture }}</h3>
+              <div class="market-title"><span>{{ marketName(item.market) }}</span><small>{{ item.period }}@if (item.line !== null) { · {{ item.line }}}</small></div>
+              <div class="price-grid" [class.two-way]="item.selections.length === 2">
+                @for (selection of item.selections; track selection.label) {
+                  <div class="best-price"><span>{{ selection.label }}</span><strong>{{ selection.odds | number: '1.2-2' }}</strong><small>{{ displayName(selection.bookmaker) }}</small></div>
+                }
+              </div>
+              <footer>
+                <span><i></i> {{ item.scope === 'live' ? 'Ažurirano pre ' + item.ageSeconds + ' s' : 'Snimak pre meča' }}</span>
+                <button (click)="openComparison(item)">Sve kvote <b>→</b></button>
+              </footer>
+            </article>
+          } @empty {
+            <div class="empty-state"><strong>Nema rezultata za izabrane filtere</strong><span>Promenite tržište, sport ili pojam pretrage.</span></div>
+          }
+        </div>
+      } @else {
+        <div class="surebet-list">
+          @for (item of pagedOpportunities(); track item.id) {
+            <article class="surebet-card" [class.cross-market]="item.kind === 'cross-market'">
+              <div class="roi-block"><span>{{ item.kind === 'cross-market' ? 'Cross-market prednost' : 'Sigurna prednost' }}</span><strong>+{{ item.roi | number: '1.2-2' }}%</strong><small>{{ item.scope === 'live' ? '● Uživo' : 'Pre meča' }}</small></div>
+              <div class="surebet-event">
+                <p>{{ item.league }}</p>
+                <div class="opportunity-tags">
+                  <span class="opportunity-type" [class.cross-market]="item.kind === 'cross-market'">{{ item.kind === 'cross-market' ? 'CROSS-MARKET' : 'ISTO TRŽIŠTE' }}</span>
+                  @if (item.pair) { <span class="opportunity-pair">{{ item.pair }}</span> }
+                </div>
+                <h3>{{ item.fixture }}</h3><span>{{ marketName(item.market) }} · {{ item.kickoff | date: 'dd.MM. · HH:mm' }}</span>
+              </div>
+              <div class="surebet-legs">
+                @for (leg of item.legs; track leg.label) { <div><span>{{ leg.label }}</span><small>{{ displayName(leg.bookmaker) }}</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div> }
+              </div>
+              <div class="surebet-action"><span><i></i> {{ item.ageSeconds }} s</span><button (click)="openOpportunity(item)">Raspodela uloga <b>→</b></button></div>
+            </article>
+          } @empty {
+            <div class="empty-state">
+              <strong>Trenutno nema proverenih surebetova</strong>
+              <span>@if (scope() === 'prematch') { Podaci pre meča se proveravaju nakon svakog skeniranja. } @else { Lista se automatski osvežava. }</span>
+              @if (bestOdds().length) { <button class="empty-action" (click)="selectView('odds')">Prikaži najbolje kvote</button> }
+            </div>
+          }
+        </div>
+      }
+
+      @if (resultCount() > 0) {
+        <div class="pagination" aria-label="Paginacija">
+          <span>Prikaz {{ rangeStart() }}–{{ rangeEnd() }} od {{ resultCount() }}</span>
+          <div>
+            <button aria-label="Prethodna stranica" [disabled]="page() === 1" (click)="goToPage(page() - 1)">←</button>
+            @for (number of pageNumbers(); track number) { <button [class.active]="page() === number" (click)="goToPage(number)">{{ number }}</button> }
+            <button aria-label="Sledeća stranica" [disabled]="page() === totalPages()" (click)="goToPage(page() + 1)">→</button>
+          </div>
+          <small>Stranica {{ page() }} od {{ totalPages() }}</small>
+        </div>
+      }
+    </section>
+
+    <section class="bookmaker-strip">
+      <div><p class="section-label">POVEZANE KLADIONICE</p><h2>Regionalna ponuda na jednom mestu.</h2></div>
+      <div class="bookmaker-cloud">
+        @for (bookmaker of api.snapshot().bookmakers; track bookmaker.name) { <span [class.delayed]="bookmaker.status !== 'online'"><i></i>{{ displayName(bookmaker.name) }}</span> }
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a class="brand" href="#top"><span class="brand-mark"><i></i><i></i><i></i></span><strong>Sure<span>Edge</span></strong></a>
+    <p>Kvote se brzo menjaju. Pre uplate proverite konačnu kvotu kod kladionice.</p>
+    <span>Poslednje osveženje {{ currentUpdated() | date: 'HH:mm:ss' }}</span>
+  </footer>
+
+  @if (selectedOpportunity()) {
+    <button class="drawer-backdrop" aria-label="Zatvori kalkulator" (click)="closeDrawer()"></button>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-label="Kalkulator surebeta">
+      <button class="drawer-close" aria-label="Zatvori" (click)="closeDrawer()">×</button>
+      <p class="section-label">KALKULATOR SUREBETA</p><h2>{{ selectedOpportunity()!.fixture }}</h2>
+      <p class="drawer-subtitle">{{ selectedOpportunity()!.league }} · {{ marketName(selectedOpportunity()!.market) }}</p>
+      <label class="stake-input"><span>Ukupan ulog</span><div><b>€</b><input #stakeInput type="number" min="1" step="10" [value]="stake()" (input)="setStake(stakeInput.value)" /></div></label>
+      <div class="stake-rows">
+        @for (row of calculatorRows(); track row.label) { <div><span class="outcome">{{ row.label }}</span><div><strong>{{ displayName(row.bookmaker) }}</strong><small>Kvota {{ row.odds | number: '1.2-2' }}</small></div><b>€{{ row.stake | number: '1.2-2' }}</b></div> }
+      </div>
+      <div class="return-card"><div><span>Garantovani povrat</span><strong>€{{ guaranteedReturn() | number: '1.2-2' }}</strong></div><div><span>Garantovana dobit</span><strong>+€{{ guaranteedProfit() | number: '1.2-2' }}</strong></div></div>
+      <p class="drawer-note">Koristite tačno prikazan ulog za svaku kladionicu i proverite da su sve kvote još dostupne.</p>
+    </aside>
+  }
+
+  @if (api.comparison() || api.comparisonLoading() || api.comparisonError()) {
+    <button class="drawer-backdrop" aria-label="Zatvori poređenje" (click)="closeDrawer()"></button>
+    <aside class="drawer comparison-drawer" role="dialog" aria-modal="true" aria-label="Sve kvote kladionica">
+      <button class="drawer-close" aria-label="Zatvori" (click)="closeDrawer()">×</button>
+      @if (api.comparisonLoading()) { <div class="drawer-loading"><i></i><strong>Učitavamo sve kvote…</strong></div> }
+      @else if (api.comparisonError()) { <div class="drawer-loading error"><strong>{{ api.comparisonError() }}</strong><button (click)="closeDrawer()">Zatvori</button></div> }
+      @else if (api.comparison(); as comparison) {
+        <p class="section-label">SVE KVOTE KLADIONICA</p><h2>{{ comparison.fixture }}</h2>
+        <p class="drawer-subtitle">{{ comparison.league }} · {{ comparison.kickoff | date: 'dd.MM. · HH:mm' }}</p>
+        <div class="comparison-markets">
+          @for (marketItem of comparison.markets; track marketItem.id) {
+            <section><h3>{{ marketName(marketItem.label) }} <small>{{ marketItem.period }}@if (marketItem.line !== null) { · {{ marketItem.line }}}</small></h3>
+              @for (outcome of marketItem.outcomes; track outcome.label) {
+                <div class="outcome-group"><strong>{{ outcome.label }}</strong><div>
+                  @for (offer of outcome.offers; track offer.bookmaker) { <span [class.best]="offer.best"><small>{{ displayName(offer.bookmaker) }}</small><b>{{ offer.odds | number: '1.2-2' }}</b>@if (offer.best) { <em>Najbolja</em> }</span> }
+                </div></div>
+              }
+            </section>
+          }
+        </div>
+        <p class="drawer-note">Najbolje kvote su označene. Konačnu kvotu uvek proverite kod kladionice.</p>
+      }
+    </aside>
+  }
+</div>
