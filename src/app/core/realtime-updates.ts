@@ -43,8 +43,9 @@ export class RealtimeUpdates {
   }
 
   private openSocket(path: string, ticket: string): void {
-    const url = new URL(path, window.location.origin);
-    url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const apiOrigin = new URL(runtimeConfig.apiBaseUrl, window.location.origin).origin;
+    const url = new URL(path, apiOrigin);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     url.searchParams.set('ticket', ticket);
     this.socket = new WebSocket(url);
     this.socket.onopen = () => this.connected.set(true);

@@ -1,5 +1,5 @@
 window.__SUREEDGE_CONFIG__ = {
-  apiBaseUrl: '/api/v1',
+  apiBaseUrl: 'https://mentor-newsletter-knitting-increasingly.trycloudflare.com/api/v1',
   auth: {
     domain: 'dev-sj137jrezlkzv1dx.us.auth0.com',
     clientId: '1r92ZDTc5JOy3ClgLOmmWVcXorMex5z3',
