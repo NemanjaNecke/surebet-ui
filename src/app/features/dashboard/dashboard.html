@@ -12,7 +12,7 @@
     </nav>
     <div class="header-actions">
       <span class="data-state" [class.preview]="api.mode() !== 'live'">
-        <i></i>{{ realtime.connected() ? 'Prenos uživo' : api.mode() === 'live' ? 'Aktuelni podaci' : 'Demo prikaz' }}
+        <i></i>{{ api.mode() === 'stale' ? 'Poslednji učitani podaci' : realtime.connected() ? 'Prenos uživo' : api.mode() === 'live' ? 'Aktuelni podaci' : 'Demo prikaz' }}
       </span>
       @if (session.enabled) {
         <button class="sign-in" (click)="session.authenticated() ? session.logout() : session.login()">
@@ -64,7 +64,12 @@
       </div>
     </section>
 
-    @if (api.mode() !== 'live') {
+    @if (api.mode() === 'stale') {
+      <section class="preview-banner" role="status">
+        <div><strong>Privremeni zastoj</strong><span>{{ api.errorMessage() }}</span></div>
+        <div class="preview-actions"><button (click)="api.refresh('all')">Pokušaj ponovo</button></div>
+      </section>
+    } @else if (api.mode() !== 'live') {
       <section class="preview-banner" role="status">
         <div><strong>Demo podaci</strong><span>{{ api.errorMessage() }}</span></div>
         <div class="preview-actions">

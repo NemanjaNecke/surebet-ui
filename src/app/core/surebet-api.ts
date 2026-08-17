@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
-import { catchError, forkJoin, map, of, timeout } from 'rxjs';
+import { catchError, forkJoin, map, of, TimeoutError, timeout } from 'rxjs';
 
 import {
   BestOddsMarket,
@@ -33,6 +33,7 @@ export class SurebetApi {
   private liveOpportunities: SurebetOpportunity[] = [];
   private prematchOpportunities: SurebetOpportunity[] = [];
   private bookmakers: BookmakerHealth[] = [];
+  private hasSuccessfulSnapshot = false;
   private liveEventTotal = PREVIEW_SNAPSHOT.liveEvents;
   private prematchEventTotal = PREVIEW_SNAPSHOT.prematchEvents;
 
@@ -128,12 +129,13 @@ export class SurebetApi {
         }),
         catchError((error: HttpErrorResponse) => {
           this.setConnectionError(error);
-          return of(PREVIEW_SNAPSHOT);
+          return of(this.hasSuccessfulSnapshot ? null : PREVIEW_SNAPSHOT);
         }),
       )
       .subscribe((snapshot) => {
-        this.snapshotState.set(snapshot);
-        if (snapshot !== PREVIEW_SNAPSHOT) {
+        if (snapshot) this.snapshotState.set(snapshot);
+        if (snapshot && snapshot !== PREVIEW_SNAPSHOT) {
+          this.hasSuccessfulSnapshot = true;
           this.mode.set('live');
           this.errorMessage.set('');
           const updated = new Date();
@@ -169,6 +171,7 @@ export class SurebetApi {
     ).subscribe((snapshot) => {
       if (snapshot) {
         this.snapshotState.set(snapshot);
+        this.hasSuccessfulSnapshot = true;
         this.mode.set('live');
         this.errorMessage.set('');
         this.lastLiveUpdated.set(new Date());
@@ -203,6 +206,7 @@ export class SurebetApi {
     ).subscribe((snapshot) => {
       if (snapshot) {
         this.snapshotState.set(snapshot);
+        this.hasSuccessfulSnapshot = true;
         this.mode.set('live');
         this.errorMessage.set('');
         this.lastPrematchUpdated.set(new Date());
@@ -215,7 +219,7 @@ export class SurebetApi {
   openComparison(item: BestOddsMarket): void {
     this.comparison.set(null);
     this.comparisonError.set('');
-    if (this.mode() !== 'live') {
+    if (this.mode() === 'preview' || this.mode() === 'offline') {
       this.comparison.set(this.previewComparison(item));
       return;
     }
@@ -253,10 +257,23 @@ export class SurebetApi {
     };
   }
 
-  private setConnectionError(error: HttpErrorResponse): void {
-    this.mode.set(error.status === 0 ? 'offline' : 'preview');
+  private setConnectionError(error: unknown): void {
+    const status = error instanceof HttpErrorResponse ? error.status : null;
+    const transient = error instanceof TimeoutError
+      || status === 0
+      || status === 408
+      || status === 429
+      || (status !== null && status >= 500);
+    if (this.hasSuccessfulSnapshot && transient) {
+      this.mode.set('stale');
+      this.errorMessage.set(
+        'Osvežavanje trenutno kasni. Prikazani su poslednji uspešno učitani podaci.',
+      );
+      return;
+    }
+    this.mode.set(status === 0 ? 'offline' : 'preview');
     this.errorMessage.set(
-      error.status === 401 || error.status === 403
+      status === 401 || status === 403
         ? 'API je povezan. Prijavite se nalogom koji ima pristup podacima.'
         : 'API za kvote trenutno nije dostupan. Prikazani su jasno označeni demo podaci.',
     );

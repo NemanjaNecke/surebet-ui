@@ -1,4 +1,4 @@
-export type DataMode = 'live' | 'preview' | 'offline';
+export type DataMode = 'live' | 'stale' | 'preview' | 'offline';
 export type OddsScope = 'live' | 'prematch';
 export type SurebetKind = 'same-market' | 'cross-market';
 

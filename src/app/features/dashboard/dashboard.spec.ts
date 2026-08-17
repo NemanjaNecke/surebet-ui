@@ -13,7 +13,7 @@ describe('Dashboard', () => {
   const snapshot = signal(PREVIEW_SNAPSHOT);
   const api = {
     snapshot,
-    mode: signal<'preview' | 'live'>('preview'), loading: signal(false), prematchLoading: signal(false),
+    mode: signal<'preview' | 'live' | 'stale'>('preview'), loading: signal(false), prematchLoading: signal(false),
     lastUpdated: signal(new Date('2026-08-15T12:00:00Z')),
     lastLiveUpdated: signal(new Date('2026-08-15T12:00:00Z')),
     lastPrematchUpdated: signal(new Date('2026-08-15T11:00:00Z')),
@@ -27,6 +27,8 @@ describe('Dashboard', () => {
   };
 
   beforeEach(async () => {
+    api.mode.set('preview');
+    api.errorMessage.set('Demo podaci');
     await TestBed.configureTestingModule({
       imports: [Dashboard],
       providers: [
@@ -42,6 +44,15 @@ describe('Dashboard', () => {
   it('marks non-live information as preview data', () => {
     expect(fixture.nativeElement.querySelector('.preview-banner')?.textContent).toContain('Demo podaci');
     expect(fixture.nativeElement.querySelectorAll('.event-card')).toHaveLength(3);
+  });
+
+  it('labels retained data as stale instead of demo data', () => {
+    api.mode.set('stale');
+    api.errorMessage.set('Prikazani su poslednji uspešno učitani podaci.');
+    fixture.detectChanges();
+    const banner = fixture.nativeElement.querySelector('.preview-banner')?.textContent;
+    expect(banner).toContain('Privremeni zastoj');
+    expect(banner).not.toContain('Demo podaci');
   });
 
   it('filters surebets by market', () => {

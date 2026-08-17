@@ -7,6 +7,18 @@ import { runtimeConfig } from './runtime-config';
 import { Session } from './session';
 import { SurebetApi } from './surebet-api';
 
+const REFRESH_EVENT_TYPES = new Set(['odds.snapshot', 'odds.update', 'match.removed']);
+
+export function shouldRefreshFromRealtimeMessage(data: unknown): boolean {
+  if (typeof data !== 'string') return false;
+  try {
+    const message = JSON.parse(data) as { type?: unknown };
+    return typeof message.type === 'string' && REFRESH_EVENT_TYPES.has(message.type);
+  } catch {
+    return false;
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class RealtimeUpdates {
   private readonly http = inject(HttpClient);
@@ -49,7 +61,8 @@ export class RealtimeUpdates {
     url.searchParams.set('ticket', ticket);
     this.socket = new WebSocket(url);
     this.socket.onopen = () => this.connected.set(true);
-    this.socket.onmessage = () => {
+    this.socket.onmessage = (event) => {
+      if (!shouldRefreshFromRealtimeMessage(event.data)) return;
       if (this.refreshTimer !== null) return;
       this.refreshTimer = window.setTimeout(() => {
         this.refreshTimer = null;

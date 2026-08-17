@@ -64,7 +64,7 @@ describe('SurebetApi', () => {
     http.verify();
   });
 
-  it('keeps the last snapshot but reports offline when a live refresh fails', () => {
+  it('keeps the last snapshot and marks it stale when a live refresh fails', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     const api = TestBed.inject(SurebetApi);
     const http = TestBed.inject(HttpTestingController);
@@ -80,14 +80,16 @@ describe('SurebetApi', () => {
     });
     http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
     expect(api.mode()).toBe('live');
+    const lastSuccessfulSnapshot = api.snapshot();
 
     api.refresh('live');
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).error(
       new ProgressEvent('network error'),
     );
 
-    expect(api.mode()).toBe('offline');
-    expect(api.errorMessage()).toContain('nije dostupan');
+    expect(api.mode()).toBe('stale');
+    expect(api.snapshot()).toBe(lastSuccessfulSnapshot);
+    expect(api.errorMessage()).toContain('poslednji uspešno učitani podaci');
     http.verify({ ignoreCancelled: true });
   });
 });
