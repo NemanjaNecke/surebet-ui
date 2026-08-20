@@ -21,7 +21,8 @@ import { PREVIEW_SNAPSHOT } from './preview-data';
 import { authEnabled, runtimeConfig } from './runtime-config';
 
 const API_ROOT = runtimeConfig.apiBaseUrl;
-const PORTAL_PAGE_LIMIT = 50;
+const LIVE_PAGE_LIMIT = 25;
+const PREMATCH_PAGE_LIMIT = 50;
 const LIVE_REFRESH_MS = 20_000;
 const PREMATCH_REFRESH_MS = 120_000;
 
@@ -88,29 +89,30 @@ export class SurebetApi {
     if (this.loading() || this.prematchLoading()) return;
     this.loading.set(true);
     this.prematchLoading.set(true);
-    const limited = new HttpParams().set('limit', PORTAL_PAGE_LIMIT);
-    const prematchWindow = limited
+    const liveParams = new HttpParams().set('limit', LIVE_PAGE_LIMIT);
+    const prematchParams = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
+    const prematchWindow = prematchParams
       .set('include_history', 'true')
       .set('history_only', 'true')
       .set('history_hours', '168');
     forkJoin({
       liveOdds: this.http
-        .get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: limited })
+        .get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: liveParams })
         .pipe(timeout(8000)),
       prematchOdds: this.http
-        .get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: limited })
+        .get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: prematchParams })
         .pipe(timeout(8000)),
       prematchHistory: this.http
         .get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: prematchWindow })
         .pipe(timeout(8000)),
       liveSurebets: this.http
-        .get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: limited })
+        .get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: liveParams })
         .pipe(timeout(8000)),
       prematch1x2: this.http
-        .get<PageResponse>(`${API_ROOT}/surebets/prematch/1x2`, { params: limited })
+        .get<PageResponse>(`${API_ROOT}/surebets/prematch/1x2`, { params: prematchParams })
         .pipe(timeout(8000)),
       prematchDc: this.http
-        .get<PageResponse>(`${API_ROOT}/surebets/prematch/dc`, { params: limited })
+        .get<PageResponse>(`${API_ROOT}/surebets/prematch/dc`, { params: prematchParams })
         .pipe(timeout(8000)),
       health: this.http
         .get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`)
@@ -167,7 +169,7 @@ export class SurebetApi {
   private refreshLive(): void {
     if (this.loading()) return;
     this.loading.set(true);
-    const limited = new HttpParams().set('limit', PORTAL_PAGE_LIMIT);
+    const limited = new HttpParams().set('limit', LIVE_PAGE_LIMIT);
     forkJoin({
       odds: this.http.get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: limited }).pipe(timeout(8000)),
       surebets: this.http.get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: limited }).pipe(timeout(8000)),
@@ -201,7 +203,7 @@ export class SurebetApi {
   private refreshPrematch(): void {
     if (this.prematchLoading()) return;
     this.prematchLoading.set(true);
-    const limited = new HttpParams().set('limit', PORTAL_PAGE_LIMIT);
+    const limited = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
     const prematchWindow = limited
       .set('include_history', 'true')
       .set('history_only', 'true')
