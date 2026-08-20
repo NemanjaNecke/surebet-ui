@@ -21,10 +21,15 @@ describe('SurebetApi', () => {
     };
 
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 1, total: 907, items: [bestMatch] });
-    const prematchRequest = http.expectOne((request) => request.url.endsWith('/odds/prematch/best'));
-    expect(prematchRequest.request.params.get('include_history')).toBe('true');
-    expect(prematchRequest.request.params.get('history_hours')).toBe('168');
+    const prematchRequest = http.expectOne((request) =>
+      request.url.endsWith('/odds/prematch/best') && !request.params.has('include_history'));
+    expect(prematchRequest.request.params.get('limit')).toBe('50');
     prematchRequest.flush({ count: 1, total: 1834, items: [{ ...bestMatch, match_id: 'match-2' }] });
+    const historyRequest = http.expectOne((request) =>
+      request.url.endsWith('/odds/prematch/best') && request.params.get('history_only') === 'true');
+    expect(historyRequest.request.params.get('include_history')).toBe('true');
+    expect(historyRequest.request.params.get('history_hours')).toBe('168');
+    historyRequest.flush({ count: 0, total: 12, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 1, items: [{
       match_id: 'match-1', market: 'FT.1X2', home: 'Home', away: 'Away', league: 'League',
       kickoff_utc: now, roi: 0.05, legs: [
@@ -55,7 +60,7 @@ describe('SurebetApi', () => {
     expect(api.snapshot().opportunities[0].kind).toBe('same-market');
     expect(api.snapshot().bookmakers[0].events).toBe(18);
     expect(api.snapshot().liveEvents).toBe(907);
-    expect(api.snapshot().prematchEvents).toBe(1834);
+    expect(api.snapshot().prematchEvents).toBe(1846);
 
     api.refresh('live');
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 0, items: [] });
@@ -73,7 +78,12 @@ describe('SurebetApi', () => {
     const http = TestBed.inject(HttpTestingController);
 
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 0, items: [] });
-    http.expectOne((request) => request.url.endsWith('/odds/prematch/best')).flush({ count: 0, items: [] });
+    http.expectOne((request) =>
+      request.url.endsWith('/odds/prematch/best') && !request.params.has('include_history'))
+      .flush({ count: 0, items: [] });
+    http.expectOne((request) =>
+      request.url.endsWith('/odds/prematch/best') && request.params.get('history_only') === 'true')
+      .flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/prematch/1x2')).flush({
       items: [], pagination: { limit: 250, offset: 0, count: 0, total: 0 },
