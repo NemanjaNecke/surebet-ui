@@ -21,7 +21,10 @@ describe('SurebetApi', () => {
     };
 
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 1, total: 907, items: [bestMatch] });
-    http.expectOne((request) => request.url.endsWith('/odds/prematch/best')).flush({ count: 1, total: 1834, items: [{ ...bestMatch, match_id: 'match-2' }] });
+    const prematchRequest = http.expectOne((request) => request.url.endsWith('/odds/prematch/best'));
+    expect(prematchRequest.request.params.get('include_history')).toBe('true');
+    expect(prematchRequest.request.params.get('history_hours')).toBe('168');
+    prematchRequest.flush({ count: 1, total: 1834, items: [{ ...bestMatch, match_id: 'match-2' }] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 1, items: [{
       match_id: 'match-1', market: 'FT.1X2', home: 'Home', away: 'Away', league: 'League',
       kickoff_utc: now, roi: 0.05, legs: [
@@ -64,7 +67,7 @@ describe('SurebetApi', () => {
     http.verify();
   });
 
-  it('keeps the last snapshot and marks it stale when a live refresh fails', () => {
+  it('keeps the last snapshot seamless before marking repeated failures stale', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     const api = TestBed.inject(SurebetApi);
     const http = TestBed.inject(HttpTestingController);
@@ -82,10 +85,20 @@ describe('SurebetApi', () => {
     expect(api.mode()).toBe('live');
     const lastSuccessfulSnapshot = api.snapshot();
 
-    api.refresh('live');
-    http.expectOne((request) => request.url.endsWith('/odds/live/best')).error(
-      new ProgressEvent('network error'),
-    );
+    const failLiveRefresh = () => {
+      api.refresh('live');
+      http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
+      http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
+      http.expectOne((request) => request.url.endsWith('/odds/live/best')).error(
+        new ProgressEvent('network error'),
+      );
+    };
+
+    failLiveRefresh();
+    expect(api.mode()).toBe('live');
+    failLiveRefresh();
+    expect(api.mode()).toBe('live');
+    failLiveRefresh();
 
     expect(api.mode()).toBe('stale');
     expect(api.snapshot()).toBe(lastSuccessfulSnapshot);

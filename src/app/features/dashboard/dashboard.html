@@ -151,9 +151,15 @@
           @for (item of pagedBestOdds(); track item.id) {
             <article class="event-card">
               <div class="event-meta">
-                <span class="scope" [class.live]="item.scope === 'live'">{{ item.scope === 'live' ? '● UŽIVO' : 'PRE MEČA' }}</span>
+                <span class="scope" [class.live]="item.scope === 'live'" [class.history]="item.historical">{{ item.scope === 'live' ? '● UŽIVO' : item.historical ? 'ISTORIJA' : 'PRE MEČA' }}</span>
                 <span>{{ sportName(item.sport) }}</span>
-                <time>{{ item.kickoff | date: 'dd.MM. · HH:mm' }}</time>
+                @if (item.liveState; as state) {
+                  <time>{{ state.homeScore }}:{{ state.awayScore }} · {{ livePeriodName(state.period) }} · {{ state.clockMinute | number: '1.0-0' }}'</time>
+                } @else if (item.kickoff) {
+                  <time>{{ item.kickoff | date: 'dd.MM. · HH:mm' }}</time>
+                } @else {
+                  <time>Vreme nije dostupno</time>
+                }
               </div>
               <p class="league">{{ item.league }}</p><h3>{{ item.fixture }}</h3>
               <div class="market-title"><span>{{ marketName(item.market) }}</span><small>{{ item.period }}@if (item.line !== null) { · {{ item.line }}}</small></div>
@@ -163,7 +169,7 @@
                 }
               </div>
               <footer>
-                <span><i></i> {{ item.scope === 'live' ? 'Ažurirano pre ' + item.ageSeconds + ' s' : 'Snimak pre meča' }}</span>
+                <span><i></i> {{ item.scope === 'live' ? 'Ažurirano pre ' + item.ageSeconds + ' s' : item.historical ? 'Sačuvani istorijski snapshot' : 'Snimak pre meča' }}</span>
                 <button (click)="openComparison(item)">Sve kvote <b>→</b></button>
               </footer>
             </article>
@@ -182,7 +188,17 @@
                   <span class="opportunity-type" [class.cross-market]="item.kind === 'cross-market'">{{ item.kind === 'cross-market' ? 'CROSS-MARKET' : 'ISTO TRŽIŠTE' }}</span>
                   @if (item.pair) { <span class="opportunity-pair">{{ item.pair }}</span> }
                 </div>
-                <h3>{{ item.fixture }}</h3><span>{{ marketName(item.market) }} · {{ item.kickoff | date: 'dd.MM. · HH:mm' }}</span>
+                <h3>{{ item.fixture }}</h3>
+                <span>
+                  {{ marketName(item.market) }} ·
+                  @if (item.liveState; as state) {
+                    {{ state.homeScore }}:{{ state.awayScore }} · {{ livePeriodName(state.period) }} · {{ state.clockMinute | number: '1.0-0' }}'
+                  } @else if (item.kickoff) {
+                    {{ item.kickoff | date: 'dd.MM. · HH:mm' }}
+                  } @else {
+                    Vreme nije dostupno
+                  }
+                </span>
               </div>
               <div class="surebet-legs">
                 @for (leg of item.legs; track leg.label) { <div><span>{{ leg.label }}</span><small>{{ displayName(leg.bookmaker) }}</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div> }

@@ -2,6 +2,13 @@ export type DataMode = 'live' | 'stale' | 'preview' | 'offline';
 export type OddsScope = 'live' | 'prematch';
 export type SurebetKind = 'same-market' | 'cross-market';
 
+export interface LiveMatchState {
+  homeScore: string;
+  awayScore: string;
+  period: string;
+  clockMinute: number;
+}
+
 export interface SurebetLeg {
   label: string;
   bookmaker: string;
@@ -21,6 +28,7 @@ export interface SurebetOpportunity {
   ageSeconds: number;
   legs: SurebetLeg[];
   scope: OddsScope;
+  liveState: LiveMatchState | null;
 }
 
 export interface BestOddsSelection {
@@ -44,6 +52,8 @@ export interface BestOddsMarket {
   ageSeconds: number;
   selections: BestOddsSelection[];
   scope: OddsScope;
+  historical: boolean;
+  liveState: LiveMatchState | null;
 }
 
 export interface MatchOffer {

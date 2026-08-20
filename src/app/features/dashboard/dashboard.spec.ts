@@ -27,6 +27,7 @@ describe('Dashboard', () => {
   };
 
   beforeEach(async () => {
+    snapshot.set(PREVIEW_SNAPSHOT);
     api.mode.set('preview');
     api.errorMessage.set('Demo podaci');
     await TestBed.configureTestingModule({
@@ -44,6 +45,19 @@ describe('Dashboard', () => {
   it('marks non-live information as preview data', () => {
     expect(fixture.nativeElement.querySelector('.preview-banner')?.textContent).toContain('Demo podaci');
     expect(fixture.nativeElement.querySelectorAll('.event-card')).toHaveLength(3);
+    expect(fixture.nativeElement.querySelector('.event-card time')?.textContent).toContain('1:0');
+  });
+
+  it('marks retained prematch games as history', () => {
+    snapshot.set({
+      ...PREVIEW_SNAPSHOT,
+      bestOdds: PREVIEW_SNAPSHOT.bestOdds.map((item, index) =>
+        index === 1 ? { ...item, historical: true } : item,
+      ),
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('ISTORIJA');
+    expect(fixture.nativeElement.textContent).toContain('Sačuvani istorijski snapshot');
   });
 
   it('labels retained data as stale instead of demo data', () => {

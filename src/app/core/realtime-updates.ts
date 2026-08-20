@@ -67,7 +67,7 @@ export class RealtimeUpdates {
       this.refreshTimer = window.setTimeout(() => {
         this.refreshTimer = null;
         this.api.refresh();
-      }, 750);
+      }, 2000);
     };
     this.socket.onerror = () => this.socket?.close();
     this.socket.onclose = () => {

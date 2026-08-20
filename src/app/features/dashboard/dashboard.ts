@@ -256,6 +256,11 @@ export class Dashboard {
     } as Record<string, string>)[value] ?? value;
   }
 
+  livePeriodName(value: string): string {
+    return ({ H1: '1. poluvreme', HT: 'poluvreme', H2: '2. poluvreme', ET: 'produžeci' } as Record<string, string>)[value]
+      ?? value;
+  }
+
   @HostListener('document:keydown.escape')
   onEscape(): void {
     this.closeDrawer();

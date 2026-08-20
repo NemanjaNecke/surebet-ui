@@ -11,13 +11,14 @@ import {
   DataMode,
   MatchComparison,
   MatchMarketOffers,
+  LiveMatchState,
   OddsScope,
   PageResponse,
   SurebetLeg,
   SurebetOpportunity,
 } from './models';
 import { PREVIEW_SNAPSHOT } from './preview-data';
-import { runtimeConfig } from './runtime-config';
+import { authEnabled, runtimeConfig } from './runtime-config';
 
 const API_ROOT = runtimeConfig.apiBaseUrl;
 const LIVE_REFRESH_MS = 20_000;
@@ -34,6 +35,7 @@ export class SurebetApi {
   private prematchOpportunities: SurebetOpportunity[] = [];
   private bookmakers: BookmakerHealth[] = [];
   private hasSuccessfulSnapshot = false;
+  private consecutiveTransientFailures = 0;
   private liveEventTotal = PREVIEW_SNAPSHOT.liveEvents;
   private prematchEventTotal = PREVIEW_SNAPSHOT.prematchEvents;
 
@@ -53,7 +55,10 @@ export class SurebetApi {
   );
 
   constructor() {
-    this.refresh('all');
+    // Authenticated deployments wait for Session/Auth0 to finish restoring the
+    // login before making paid API calls. This avoids a visible initial 401 ->
+    // demo -> live flash. Unauthenticated preview builds still load directly.
+    if (!authEnabled) this.refresh('all');
     const liveTimer = window.setInterval(() => {
       if (document.visibilityState === 'visible') this.refresh('live');
     }, LIVE_REFRESH_MS);
@@ -83,12 +88,15 @@ export class SurebetApi {
     this.loading.set(true);
     this.prematchLoading.set(true);
     const limited = new HttpParams().set('limit', 250);
+    const prematchWindow = limited
+      .set('include_history', 'true')
+      .set('history_hours', '168');
     forkJoin({
       liveOdds: this.http
         .get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: limited })
         .pipe(timeout(8000)),
       prematchOdds: this.http
-        .get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: limited })
+        .get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: prematchWindow })
         .pipe(timeout(8000)),
       liveSurebets: this.http
         .get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: limited })
@@ -136,13 +144,14 @@ export class SurebetApi {
         if (snapshot) this.snapshotState.set(snapshot);
         if (snapshot && snapshot !== PREVIEW_SNAPSHOT) {
           this.hasSuccessfulSnapshot = true;
+          this.consecutiveTransientFailures = 0;
           this.mode.set('live');
           this.errorMessage.set('');
           const updated = new Date();
           this.lastLiveUpdated.set(updated);
           this.lastPrematchUpdated.set(updated);
         }
-        this.lastUpdated.set(new Date());
+        if (snapshot) this.lastUpdated.set(new Date());
         this.loading.set(false);
         this.prematchLoading.set(false);
       });
@@ -172,11 +181,12 @@ export class SurebetApi {
       if (snapshot) {
         this.snapshotState.set(snapshot);
         this.hasSuccessfulSnapshot = true;
+        this.consecutiveTransientFailures = 0;
         this.mode.set('live');
         this.errorMessage.set('');
         this.lastLiveUpdated.set(new Date());
       }
-      this.lastUpdated.set(new Date());
+      if (snapshot) this.lastUpdated.set(new Date());
       this.loading.set(false);
     });
   }
@@ -185,8 +195,11 @@ export class SurebetApi {
     if (this.prematchLoading()) return;
     this.prematchLoading.set(true);
     const limited = new HttpParams().set('limit', 250);
+    const prematchWindow = limited
+      .set('include_history', 'true')
+      .set('history_hours', '168');
     forkJoin({
-      odds: this.http.get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: limited }).pipe(timeout(8000)),
+      odds: this.http.get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: prematchWindow }).pipe(timeout(8000)),
       one: this.http.get<PageResponse>(`${API_ROOT}/surebets/prematch/1x2`, { params: limited }).pipe(timeout(8000)),
       dc: this.http.get<PageResponse>(`${API_ROOT}/surebets/prematch/dc`, { params: limited }).pipe(timeout(8000)),
     }).pipe(
@@ -207,11 +220,12 @@ export class SurebetApi {
       if (snapshot) {
         this.snapshotState.set(snapshot);
         this.hasSuccessfulSnapshot = true;
+        this.consecutiveTransientFailures = 0;
         this.mode.set('live');
         this.errorMessage.set('');
         this.lastPrematchUpdated.set(new Date());
       }
-      this.lastUpdated.set(new Date());
+      if (snapshot) this.lastUpdated.set(new Date());
       this.prematchLoading.set(false);
     });
   }
@@ -265,6 +279,8 @@ export class SurebetApi {
       || status === 429
       || (status !== null && status >= 500);
     if (this.hasSuccessfulSnapshot && transient) {
+      this.consecutiveTransientFailures += 1;
+      if (this.consecutiveTransientFailures < 3) return;
       this.mode.set('stale');
       this.errorMessage.set(
         'Osvežavanje trenutno kasni. Prikazani su poslednji uspešno učitani podaci.',
@@ -308,6 +324,8 @@ export class SurebetApi {
         id: `${scope}-${matchId}-${rawMarket}-${String(marketRow['period'] ?? 'FT')}-${line ?? ''}-${marketIndex}`,
         matchId,
         scope,
+        historical: Boolean(row['historical']),
+        liveState: this.toLiveState(row),
         sport: String(row['sport'] ?? 'Sport'),
         market: this.marketLabel(rawMarket, selections.length),
         marketKey: rawMarket,
@@ -366,6 +384,7 @@ export class SurebetApi {
     return {
       id: String(row['id'] ?? `${scope}-${String(row['match_id'] ?? row['canon_key'] ?? index)}-${rawMarket}-${String(row['pair'] ?? '')}`),
       scope,
+      liveState: this.toLiveState(row),
       kind,
       pair: pair || null,
       market: this.marketLabel(rawMarket, legs.length),
@@ -439,6 +458,20 @@ export class SurebetApi {
     const normalized = rawMarket.toUpperCase();
     return ({ 'FT.1X2': '1X2', 'FT.DC': 'DC', 'FT.OU': 'O/U', 'FT.BTTS': 'BTTS' } as Record<string, string>)[normalized]
       ?? (normalized === 'DC' ? 'DC' : outcomeCount === 2 ? '2-Way' : rawMarket);
+  }
+
+  private toLiveState(row: Record<string, unknown>): LiveMatchState | null {
+    const raw = row['live_state'];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const state = raw as Record<string, unknown>;
+    const clockMinute = Number(state['clock_minute']);
+    if (!Number.isFinite(clockMinute)) return null;
+    return {
+      homeScore: String(state['home_score'] ?? ''),
+      awayScore: String(state['away_score'] ?? ''),
+      period: String(state['period'] ?? ''),
+      clockMinute,
+    };
   }
 
   private toBookmakers(payload: Record<string, unknown>): BookmakerHealth[] {

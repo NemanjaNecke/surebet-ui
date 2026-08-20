@@ -9,6 +9,7 @@ export const PREVIEW_SNAPSHOT: DashboardSnapshot = {
     {
       id: 'preview-odds-1', matchId: 'preview-match-1', sport: 'Football', market: '1X2',
       marketKey: 'FT.1X2', period: 'FT', line: null, scope: 'live',
+      historical: false, liveState: { homeScore: '1', awayScore: '0', period: 'H2', clockMinute: 67 },
       fixture: 'Partizan — Crvena zvezda', league: 'Serbia · SuperLiga',
       kickoff: new Date(Date.now() + 18 * 60_000).toISOString(), ageSeconds: 3,
       selections: [
@@ -20,6 +21,7 @@ export const PREVIEW_SNAPSHOT: DashboardSnapshot = {
     {
       id: 'preview-odds-2', matchId: 'preview-match-2', sport: 'Basketball', market: '2-Way',
       marketKey: 'FT.MONEYLINE', period: 'FT', line: null, scope: 'prematch',
+      historical: false, liveState: null,
       fixture: 'Budućnost — Borac Banja Luka', league: 'Adriatic League',
       kickoff: new Date(Date.now() + 63 * 60_000).toISOString(), ageSeconds: 6,
       selections: [
@@ -30,6 +32,7 @@ export const PREVIEW_SNAPSHOT: DashboardSnapshot = {
     {
       id: 'preview-odds-3', matchId: 'preview-match-3', sport: 'Football', market: 'O/U',
       marketKey: 'FT.OU', period: 'FT', line: 2.5, scope: 'live',
+      historical: false, liveState: { homeScore: '0', awayScore: '0', period: 'H1', clockMinute: 31 },
       fixture: 'Novi Pazar — Vojvodina', league: 'Serbia · SuperLiga',
       kickoff: new Date(Date.now() + 41 * 60_000).toISOString(), ageSeconds: 9,
       selections: [
@@ -43,6 +46,7 @@ export const PREVIEW_SNAPSHOT: DashboardSnapshot = {
       id: 'preview-1', kind: 'same-market', pair: null, market: '1X2', scope: 'live', fixture: 'Partizan — Crvena zvezda',
       league: 'Serbia · SuperLiga', kickoff: new Date(Date.now() + 18 * 60_000).toISOString(),
       roi: 6.42, profit: 64.2, ageSeconds: 4,
+      liveState: { homeScore: '1', awayScore: '0', period: 'H2', clockMinute: 67 },
       legs: [
         { label: '1', bookmaker: 'Mozzart', odds: 3.05 },
         { label: 'X', bookmaker: 'MaxBet', odds: 3.7 },
@@ -53,6 +57,7 @@ export const PREVIEW_SNAPSHOT: DashboardSnapshot = {
       id: 'preview-2', kind: 'cross-market', pair: '1X vs 2', market: 'DC', scope: 'prematch', fixture: 'Novi Pazar — Vojvodina',
       league: 'Serbia · SuperLiga', kickoff: new Date(Date.now() + 41 * 60_000).toISOString(),
       roi: 4.87, profit: 48.7, ageSeconds: 7,
+      liveState: null,
       legs: [
         { label: '1X', bookmaker: 'SoccerBet', odds: 1.93 },
         { label: '2', bookmaker: 'Meridian', odds: 2.25 },
@@ -62,6 +67,7 @@ export const PREVIEW_SNAPSHOT: DashboardSnapshot = {
       id: 'preview-3', kind: 'same-market', pair: null, market: '2-Way', scope: 'prematch', fixture: 'Budućnost — Borac Banja Luka',
       league: 'Adriatic League', kickoff: new Date(Date.now() + 63 * 60_000).toISOString(),
       roi: 3.91, profit: 39.1, ageSeconds: 11,
+      liveState: null,
       legs: [
         { label: '1', bookmaker: 'Volcano', odds: 2.12 },
         { label: '2', bookmaker: 'WWin', odds: 2.08 },
