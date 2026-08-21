@@ -103,7 +103,7 @@
         </div>
         <button class="refresh" [disabled]="currentLoading()" (click)="refreshCurrent()">
           <svg viewBox="0 0 24 24" [class.spinning]="currentLoading()"><path d="M20 6v5h-5M4 18v-5h5M18.5 9A7 7 0 0 0 6.6 6.5L4 11m16 2-2.6 4.5A7 7 0 0 1 5.5 15" /></svg>
-          {{ currentLoading() ? 'Osvežavanje' : scope() === 'prematch' ? 'Ažuriraj podatke pre meča' : 'Osveži uživo' }}
+          {{ currentLoading() ? 'Osvežavanje' : 'Osveži sada' }}
         </button>
       </div>
 
@@ -158,13 +158,16 @@
             }
           </div>
         </div>
-        <label class="select-wrap"><span>Vremenski period</span>
-          <select #timeSelect (change)="setTimeWindow(timeSelect.value)">
-            @for (hours of timeWindows; track hours) {
-              <option [value]="hours === null ? 'all' : hours" [selected]="timeWindowHours() === hours">{{ hours === null ? 'Sve' : hours === 1 ? '1 sat' : hours <= 4 ? hours + ' sata' : hours + ' sati' }}</option>
-            }
-          </select>
-        </label>
+        @if (scope() === 'prematch') {
+          <div>
+            <span>Vremenski period</span>
+            <div class="filter-buttons time-filter">
+              @for (item of timeWindows; track item.value) {
+                <button [class.active]="timeWindow() === item.value" (click)="setTimeWindow(item.value)">{{ item.label }}</button>
+              }
+            </div>
+          </div>
+        }
         <label class="select-wrap"><span>Po stranici</span>
           <select #sizeSelect (change)="setPageSize(sizeSelect.value)">
             @for (size of pageSizes; track size) { <option [value]="size" [selected]="pageSize() === size">{{ size }}</option> }

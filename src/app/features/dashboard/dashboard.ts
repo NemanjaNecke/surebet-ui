@@ -7,6 +7,7 @@ import { Session } from '../../core/session';
 import { SurebetApi } from '../../core/surebet-api';
 
 type OpportunityKindFilter = 'all' | SurebetKind;
+type PrematchTimeWindow = 'today' | '1h' | '3h' | 'tomorrow' | '3d' | 'all';
 
 @Component({
   selector: 'app-dashboard',
@@ -26,7 +27,7 @@ export class Dashboard {
   readonly sport = signal('All');
   readonly scope = signal<OddsScope>('live');
   readonly bookmaker = signal('');
-  readonly timeWindowHours = signal<number | null>(null);
+  readonly timeWindow = signal<PrematchTimeWindow>('today');
   readonly opportunityKind = signal<OpportunityKindFilter>('all');
   readonly marketView = signal<'odds' | 'surebets'>('odds');
   readonly selectedOpportunity = signal<SurebetOpportunity | null>(null);
@@ -36,7 +37,14 @@ export class Dashboard {
   readonly pageSize = signal(12);
   readonly markets = ['All', '1X2', '2-Way', 'DC', 'O/U', 'BTTS'];
   readonly pageSizes = [12, 24, 48];
-  readonly timeWindows = [1, 2, 3, 6, 12, 24, null] as const;
+  readonly timeWindows: ReadonlyArray<{ value: PrematchTimeWindow; label: string }> = [
+    { value: 'today', label: 'Danas' },
+    { value: '1h', label: '1 sat' },
+    { value: '3h', label: '3 sata' },
+    { value: 'tomorrow', label: 'Sutra' },
+    { value: '3d', label: '3 dana' },
+    { value: 'all', label: 'Sve' },
+  ];
   private searchTimer: number | null = null;
 
   readonly sports = computed(() => [
@@ -218,19 +226,27 @@ export class Dashboard {
     this.page.set(1);
   }
 
-  setTimeWindow(value: string): void {
-    this.timeWindowHours.set(value === 'all' ? null : Number(value));
+  setTimeWindow(value: PrematchTimeWindow): void {
+    this.timeWindow.set(value);
     this.page.set(1);
   }
 
   private matchesTimeWindow(kickoff: string, ageSeconds: number, scope: OddsScope): boolean {
-    const hours = this.timeWindowHours();
-    if (hours === null) return true;
-    if (scope === 'live') return ageSeconds <= hours * 3600;
+    if (scope === 'live') return true;
+    const window = this.timeWindow();
+    if (window === 'all') return true;
     const kickoffAt = Date.parse(kickoff);
     if (!Number.isFinite(kickoffAt)) return false;
-    const difference = kickoffAt - Date.now();
-    return difference >= 0 && difference <= hours * 3600 * 1000;
+    const now = new Date();
+    if (window === '1h' || window === '3h' || window === '3d') {
+      const hours = window === '1h' ? 1 : window === '3h' ? 3 : 72;
+      const difference = kickoffAt - now.getTime();
+      return difference >= 0 && difference <= hours * 3600 * 1000;
+    }
+    const dayOffset = window === 'tomorrow' ? 1 : 0;
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset).getTime();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset + 1).getTime();
+    return kickoffAt >= Math.max(start, now.getTime()) && kickoffAt < end;
   }
 
   private sportForOpportunity(item: SurebetOpportunity): string {
