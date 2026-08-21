@@ -191,7 +191,17 @@
                   <time>Vreme nije dostupno</time>
                 }
               </div>
-              <p class="league">{{ item.league }}</p><h3>{{ item.fixture }}</h3>
+              <p class="league">{{ item.league }}</p>
+              <div class="fixture-teams">
+                @for (team of fixtureTeams(item.fixture); track team) {
+                  <div class="fixture-team">
+                    @if (teamLogoUrl(team); as logo) {
+                      <img [src]="logo" [alt]="team + ' grb'" loading="lazy" (error)="hideBrokenImage($event)" />
+                    }
+                    <h3>{{ team }}</h3>
+                  </div>
+                }
+              </div>
               <div class="market-title"><span>{{ marketName(item.market) }}</span><small>{{ item.period }}@if (item.line !== null) { · {{ item.line }}}</small></div>
               <div class="price-grid" [class.two-way]="item.selections.length === 2">
                 @for (selection of item.selections; track selection.label) {

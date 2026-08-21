@@ -5,6 +5,7 @@ import { BestOddsMarket, OddsScope, SurebetKind, SurebetOpportunity } from '../.
 import { RealtimeUpdates } from '../../core/realtime-updates';
 import { Session } from '../../core/session';
 import { SurebetApi } from '../../core/surebet-api';
+import { verifiedTeamLogoUrl } from '../../core/team-logos';
 
 type OpportunityKindFilter = 'all' | SurebetKind;
 type PrematchTimeWindow = 'today' | '1h' | '3h' | 'tomorrow' | '3d' | 'all';
@@ -271,6 +272,18 @@ export class Dashboard {
 
   refreshCurrent(): void {
     this.api.refresh(this.scope());
+  }
+
+  fixtureTeams(fixture: string): string[] {
+    return fixture.split(' — ').map((team) => team.trim()).filter(Boolean);
+  }
+
+  teamLogoUrl(team: string): string | null {
+    return verifiedTeamLogoUrl(team);
+  }
+
+  hideBrokenImage(event: Event): void {
+    (event.currentTarget as HTMLImageElement).hidden = true;
   }
 
   openOpportunity(item: SurebetOpportunity): void {
