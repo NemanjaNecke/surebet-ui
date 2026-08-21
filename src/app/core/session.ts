@@ -12,6 +12,9 @@ export class Session {
   readonly authenticated = toSignal(this.auth?.isAuthenticated$ ?? of(false), {
     initialValue: false,
   });
+  readonly loading = toSignal(this.auth?.isLoading$ ?? of(false), {
+    initialValue: authEnabled,
+  });
   readonly user = toSignal<User | null | undefined>(
     (this.auth?.user$ as Observable<User | null | undefined> | undefined) ?? of(null),
     { initialValue: null },

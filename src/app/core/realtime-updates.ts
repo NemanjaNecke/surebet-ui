@@ -8,6 +8,7 @@ import { Session } from './session';
 import { SurebetApi } from './surebet-api';
 
 const REFRESH_EVENT_TYPES = new Set(['odds.snapshot', 'odds.update', 'match.removed']);
+const REALTIME_REFRESH_THROTTLE_MS = 15_000;
 
 export function shouldRefreshFromRealtimeMessage(data: unknown): boolean {
   if (typeof data !== 'string') return false;
@@ -28,6 +29,7 @@ export class RealtimeUpdates {
   private socket: WebSocket | null = null;
   private reconnectTimer: number | null = null;
   private refreshTimer: number | null = null;
+  private lastRefreshAt = 0;
 
   readonly connected = signal(false);
 
@@ -64,10 +66,12 @@ export class RealtimeUpdates {
     this.socket.onmessage = (event) => {
       if (!shouldRefreshFromRealtimeMessage(event.data)) return;
       if (this.refreshTimer !== null) return;
+      const delay = Math.max(0, REALTIME_REFRESH_THROTTLE_MS - (Date.now() - this.lastRefreshAt));
       this.refreshTimer = window.setTimeout(() => {
         this.refreshTimer = null;
-        this.api.refresh();
-      }, 2000);
+        this.lastRefreshAt = Date.now();
+        this.api.refresh('live', false);
+      }, delay);
     };
     this.socket.onerror = () => this.socket?.close();
     this.socket.onclose = () => {

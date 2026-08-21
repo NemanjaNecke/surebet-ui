@@ -6,7 +6,6 @@ import { RealtimeUpdates } from '../../core/realtime-updates';
 import { Session } from '../../core/session';
 import { SurebetApi } from '../../core/surebet-api';
 
-type ScopeFilter = 'all' | OddsScope;
 type OpportunityKindFilter = 'all' | SurebetKind;
 
 @Component({
@@ -25,7 +24,9 @@ export class Dashboard {
   readonly suggestionsOpen = signal(false);
   readonly market = signal('All');
   readonly sport = signal('All');
-  readonly scope = signal<ScopeFilter>('all');
+  readonly scope = signal<OddsScope>('live');
+  readonly bookmaker = signal('');
+  readonly timeWindowHours = signal<number | null>(null);
   readonly opportunityKind = signal<OpportunityKindFilter>('all');
   readonly marketView = signal<'odds' | 'surebets'>('odds');
   readonly selectedOpportunity = signal<SurebetOpportunity | null>(null);
@@ -35,6 +36,7 @@ export class Dashboard {
   readonly pageSize = signal(12);
   readonly markets = ['All', '1X2', '2-Way', 'DC', 'O/U', 'BTTS'];
   readonly pageSizes = [12, 24, 48];
+  readonly timeWindows = [1, 2, 3, 6, 12, 24, null] as const;
   private searchTimer: number | null = null;
 
   readonly sports = computed(() => [
@@ -42,15 +44,22 @@ export class Dashboard {
     ...new Set(this.api.snapshot().bestOdds.map((item) => this.sportName(item.sport))),
   ]);
 
+  readonly bookmakers = computed(() => [...new Set(
+    this.api.snapshot().bestOdds.flatMap((item) => item.selections.map((selection) => selection.bookmaker)),
+  )].sort());
+
   readonly opportunities = computed(() => {
     const query = this.search().trim().toLocaleLowerCase();
     return this.api.snapshot().opportunities.filter((item) => {
       const marketMatches = this.market() === 'All' || item.market.toLocaleLowerCase() === this.market().toLocaleLowerCase();
-      const scopeMatches = this.scope() === 'all' || item.scope === this.scope();
+      const scopeMatches = item.scope === this.scope();
+      const sportMatches = this.sport() === 'All' || this.sportForOpportunity(item) === this.sport();
+      const bookmakerMatches = !this.bookmaker() || item.legs.some((leg) => leg.bookmaker === this.bookmaker());
+      const timeMatches = this.matchesTimeWindow(item.kickoff, item.ageSeconds, item.scope);
       const kindMatches = this.opportunityKind() === 'all' || item.kind === this.opportunityKind();
       const queryMatches = !query || `${item.fixture} ${item.league} ${item.market} ${item.legs.map((leg) => this.displayName(leg.bookmaker)).join(' ')}`
         .toLocaleLowerCase().includes(query);
-      return marketMatches && scopeMatches && kindMatches && queryMatches;
+      return marketMatches && scopeMatches && sportMatches && bookmakerMatches && timeMatches && kindMatches && queryMatches;
     });
   });
 
@@ -59,10 +68,12 @@ export class Dashboard {
     return this.api.snapshot().bestOdds.filter((item) => {
       const marketMatches = this.market() === 'All' || item.market.toLocaleLowerCase() === this.market().toLocaleLowerCase();
       const sportMatches = this.sport() === 'All' || this.sportName(item.sport) === this.sport();
-      const scopeMatches = this.scope() === 'all' || item.scope === this.scope();
+      const scopeMatches = item.scope === this.scope();
+      const bookmakerMatches = !this.bookmaker() || item.selections.some((selection) => selection.bookmaker === this.bookmaker());
+      const timeMatches = this.matchesTimeWindow(item.kickoff, item.ageSeconds, item.scope);
       const queryMatches = !query || `${item.fixture} ${item.league} ${this.sportName(item.sport)} ${item.market} ${item.selections.map((selection) => this.displayName(selection.bookmaker)).join(' ')}`
         .toLocaleLowerCase().includes(query);
-      return marketMatches && sportMatches && scopeMatches && queryMatches;
+      return marketMatches && sportMatches && scopeMatches && bookmakerMatches && timeMatches && queryMatches;
     });
   });
 
@@ -181,7 +192,7 @@ export class Dashboard {
     if (view === 'surebets') this.api.refresh(this.scope());
   }
 
-  setScope(scope: ScopeFilter): void {
+  setScope(scope: OddsScope): void {
     this.scope.set(scope);
     this.page.set(1);
     if (scope === 'prematch') this.api.refresh('prematch');
@@ -200,6 +211,33 @@ export class Dashboard {
   setSport(sport: string): void {
     this.sport.set(sport);
     this.page.set(1);
+  }
+
+  setBookmaker(bookmaker: string): void {
+    this.bookmaker.set(this.bookmaker() === bookmaker ? '' : bookmaker);
+    this.page.set(1);
+  }
+
+  setTimeWindow(value: string): void {
+    this.timeWindowHours.set(value === 'all' ? null : Number(value));
+    this.page.set(1);
+  }
+
+  private matchesTimeWindow(kickoff: string, ageSeconds: number, scope: OddsScope): boolean {
+    const hours = this.timeWindowHours();
+    if (hours === null) return true;
+    if (scope === 'live') return ageSeconds <= hours * 3600;
+    const kickoffAt = Date.parse(kickoff);
+    if (!Number.isFinite(kickoffAt)) return false;
+    const difference = kickoffAt - Date.now();
+    return difference >= 0 && difference <= hours * 3600 * 1000;
+  }
+
+  private sportForOpportunity(item: SurebetOpportunity): string {
+    const matching = this.api.snapshot().bestOdds.find((candidate) =>
+      candidate.scope === item.scope && candidate.fixture === item.fixture,
+    );
+    return matching ? this.sportName(matching.sport) : '';
   }
 
   setPageSize(value: string): void {

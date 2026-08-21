@@ -23,14 +23,17 @@ import { authEnabled, runtimeConfig } from './runtime-config';
 const API_ROOT = runtimeConfig.apiBaseUrl;
 const LIVE_PAGE_LIMIT = 25;
 const PREMATCH_PAGE_LIMIT = 50;
-const LIVE_REFRESH_MS = 20_000;
+const LIVE_REFRESH_MS = 60_000;
 const PREMATCH_REFRESH_MS = 120_000;
+const EMPTY_SNAPSHOT: DashboardSnapshot = {
+  bestOdds: [], opportunities: [], bookmakers: [], trend: [], liveEvents: 0, prematchEvents: 0,
+};
 
 @Injectable({ providedIn: 'root' })
 export class SurebetApi {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly snapshotState = signal<DashboardSnapshot>(PREVIEW_SNAPSHOT);
+  private readonly snapshotState = signal<DashboardSnapshot>(authEnabled ? EMPTY_SNAPSHOT : PREVIEW_SNAPSHOT);
   private liveBest: BestOddsMarket[] = [];
   private prematchBest: BestOddsMarket[] = [];
   private liveOpportunities: SurebetOpportunity[] = [];
@@ -38,11 +41,13 @@ export class SurebetApi {
   private bookmakers: BookmakerHealth[] = [];
   private hasSuccessfulSnapshot = false;
   private consecutiveTransientFailures = 0;
-  private liveEventTotal = PREVIEW_SNAPSHOT.liveEvents;
-  private prematchEventTotal = PREVIEW_SNAPSHOT.prematchEvents;
+  private liveEventTotal = authEnabled ? 0 : PREVIEW_SNAPSHOT.liveEvents;
+  private prematchEventTotal = authEnabled ? 0 : PREVIEW_SNAPSHOT.prematchEvents;
+  private liveInFlight = false;
+  private prematchInFlight = false;
 
   readonly snapshot = this.snapshotState.asReadonly();
-  readonly mode = signal<DataMode>('preview');
+  readonly mode = signal<DataMode>(authEnabled ? 'loading' : 'preview');
   readonly loading = signal(false);
   readonly prematchLoading = signal(false);
   readonly lastUpdated = signal<Date | null>(null);
@@ -62,10 +67,10 @@ export class SurebetApi {
     // demo -> live flash. Unauthenticated preview builds still load directly.
     if (!authEnabled) this.refresh('all');
     const liveTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') this.refresh('live');
+      if (document.visibilityState === 'visible') this.refresh('live', false);
     }, LIVE_REFRESH_MS);
     const prematchTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') this.refresh('prematch');
+      if (document.visibilityState === 'visible') this.refresh('prematch', false);
     }, PREMATCH_REFRESH_MS);
     this.destroyRef.onDestroy(() => {
       window.clearInterval(liveTimer);
@@ -73,16 +78,17 @@ export class SurebetApi {
     });
   }
 
-  refresh(scope: 'all' | OddsScope = 'live'): void {
+  refresh(scope: 'all' | OddsScope = 'live', foreground = true): void {
     if (scope === 'prematch') {
-      this.refreshPrematch();
+      this.refreshPrematch(foreground);
       return;
     }
     if (scope === 'live') {
-      this.refreshLive();
+      this.refreshLive(foreground);
       return;
     }
-    this.loadAll();
+    this.refreshLive(foreground);
+    this.refreshPrematch(foreground);
   }
 
   private loadAll(): void {
@@ -166,9 +172,10 @@ export class SurebetApi {
       });
   }
 
-  private refreshLive(): void {
-    if (this.loading()) return;
-    this.loading.set(true);
+  private refreshLive(foreground = true): void {
+    if (this.liveInFlight) return;
+    this.liveInFlight = true;
+    if (foreground) this.loading.set(true);
     const limited = new HttpParams().set('limit', LIVE_PAGE_LIMIT);
     forkJoin({
       odds: this.http.get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: limited }).pipe(timeout(8000)),
@@ -196,13 +203,15 @@ export class SurebetApi {
         this.lastLiveUpdated.set(new Date());
       }
       if (snapshot) this.lastUpdated.set(new Date());
-      this.loading.set(false);
+      this.liveInFlight = false;
+      if (foreground) this.loading.set(false);
     });
   }
 
-  private refreshPrematch(): void {
-    if (this.prematchLoading()) return;
-    this.prematchLoading.set(true);
+  private refreshPrematch(foreground = true): void {
+    if (this.prematchInFlight) return;
+    this.prematchInFlight = true;
+    if (foreground) this.prematchLoading.set(true);
     const limited = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
     const prematchWindow = limited
       .set('include_history', 'true')
@@ -239,7 +248,8 @@ export class SurebetApi {
         this.lastPrematchUpdated.set(new Date());
       }
       if (snapshot) this.lastUpdated.set(new Date());
-      this.prematchLoading.set(false);
+      this.prematchInFlight = false;
+      if (foreground) this.prematchLoading.set(false);
     });
   }
 
@@ -300,11 +310,13 @@ export class SurebetApi {
       );
       return;
     }
-    this.mode.set(status === 0 ? 'offline' : 'preview');
+    this.mode.set(authEnabled || status === 0 ? 'offline' : 'preview');
     this.errorMessage.set(
       status === 401 || status === 403
         ? 'API je povezan. Prijavite se nalogom koji ima pristup podacima.'
-        : 'API za kvote trenutno nije dostupan. Prikazani su jasno označeni demo podaci.',
+        : authEnabled
+          ? 'Nije moguće učitati podatke sa API-ja. Pokušavamo ponovo bez prekidanja stranice.'
+          : 'API za kvote trenutno nije dostupan. Prikazani su jasno označeni demo podaci.',
     );
   }
 
@@ -323,7 +335,7 @@ export class SurebetApi {
       const selections = Array.isArray(marketRow['outcomes'])
         ? (marketRow['outcomes'] as Record<string, unknown>[]).map(
             (outcome): BestOddsSelection => ({
-              label: String(outcome['outcome'] ?? '?'),
+              label: String(outcome['outcome_label'] ?? outcome['outcome'] ?? '?'),
               bookmaker: String(outcome['bookmaker'] ?? 'Unknown'),
               odds: Number(outcome['price'] ?? 0),
               observedAt: String(outcome['observed_at'] ?? updatedAt),
@@ -340,7 +352,7 @@ export class SurebetApi {
         historical: Boolean(row['historical']),
         liveState: this.toLiveState(row),
         sport: String(row['sport'] ?? 'Sport'),
-        market: this.marketLabel(rawMarket, selections.length),
+        market: String(marketRow['market_label'] ?? this.marketLabel(rawMarket, selections.length)),
         marketKey: rawMarket,
         period: String(marketRow['period'] ?? 'FT'),
         line: Number.isFinite(line) ? line : null,
@@ -364,6 +376,7 @@ export class SurebetApi {
       label: String(leg['outcome'] ?? '?'),
       bookmaker: String(leg['bookmaker'] ?? 'Unknown'),
       odds: Number(leg['price'] ?? 0),
+      country: this.countryForBookmaker(String(leg['bookmaker'] ?? '')),
     }));
     if (!legs.length) {
       const candidates: [string, string, string][] = fallbackMarket === 'DC'
@@ -372,7 +385,8 @@ export class SurebetApi {
       for (const [label, sourceKey, oddsKey] of candidates) {
         const odds = Number(row[oddsKey]);
         if (Number.isFinite(odds) && odds > 1) {
-          legs.push({ label, bookmaker: String(row[sourceKey] ?? 'Unknown'), odds });
+          const bookmaker = String(row[sourceKey] ?? 'Unknown');
+          legs.push({ label, bookmaker, odds, country: this.countryForBookmaker(bookmaker) });
         }
       }
     }
@@ -388,8 +402,8 @@ export class SurebetApi {
       row['market'] ?? row['market_type'] ?? (fallbackMarket || (legs.length === 3 ? '1X2' : '2-Way')),
     );
     const pair = String(row['pair'] ?? '').trim();
-    const explicitKind = String(row['opportunity_type'] ?? row['kind'] ?? '').trim().toLocaleLowerCase();
-    const kind = explicitKind === 'cross_market' || explicitKind === 'cross-market' || Boolean(pair)
+    const countries = new Set(legs.map((leg) => leg.country).filter(Boolean));
+    const kind = countries.size > 1
       ? 'cross-market'
       : 'same-market';
     const rawRoi = Number(row['roi'] ?? row['ROI'] ?? 0);
@@ -429,7 +443,7 @@ export class SurebetApi {
           period: String(market['period'] ?? 'FT'),
           line: market['line'] === null || market['line'] === undefined ? null : Number(market['line']),
           outcomes: rawOutcomes.map((outcome) => ({
-            label: String(outcome['outcome'] ?? '?'),
+            label: String(outcome['outcome_label'] ?? outcome['outcome'] ?? '?'),
             offers: (Array.isArray(outcome['offers']) ? (outcome['offers'] as Record<string, unknown>[]) : [])
               .map((offer) => ({
                 bookmaker: String(offer['bookmaker'] ?? 'Unknown'),
@@ -470,7 +484,23 @@ export class SurebetApi {
   private marketLabel(rawMarket: string, outcomeCount = 0): string {
     const normalized = rawMarket.toUpperCase();
     return ({ 'FT.1X2': '1X2', 'FT.DC': 'DC', 'FT.OU': 'O/U', 'FT.BTTS': 'BTTS' } as Record<string, string>)[normalized]
-      ?? (normalized === 'DC' ? 'DC' : outcomeCount === 2 ? '2-Way' : rawMarket);
+      ?? (normalized === 'DC' ? 'DC' : normalized.startsWith('RAW.')
+        ? outcomeCount ? `Tržište sa ${outcomeCount} ishoda` : 'Dodatno tržište'
+        : outcomeCount === 2 ? '2-Way' : rawMarket);
+  }
+
+  private countryForBookmaker(value: string): 'RS' | 'BA' | null {
+    const bookmaker = value.trim().toLocaleLowerCase();
+    const serbia = new Set([
+      'admiral_rs', 'balkanbet_rs', 'ibet365_rs', 'maxbet_rs', 'meridianbet_rs',
+      'merkurxtip_rs', 'mozzart_com', 'soccerbet_rs', 'volcanobet_rs',
+    ]);
+    const bosnia = new Set([
+      'admiral', 'betlive', 'betole', 'formula_ba', 'maxbet', 'mbet', 'mdshop',
+      'meridianbet', 'mozzart', 'premier', 'soccerbet', 'sportplus', 'volcanobet',
+      'wwin', 'xlivebet',
+    ]);
+    return serbia.has(bookmaker) ? 'RS' : bosnia.has(bookmaker) ? 'BA' : null;
   }
 
   private toLiveState(row: Record<string, unknown>): LiveMatchState | null {

@@ -43,7 +43,7 @@ describe('SurebetApi', () => {
       pagination: { limit: 100, offset: 0, count: 1, total: 1 },
     });
     http.expectOne((request) => request.url.endsWith('/surebets/prematch/dc')).flush({
-      items: [{ canon_key: 'match-3', pair: '1X vs 2', home: 'Third', away: 'Match', ROI: 0.03, best_dc: 1.9, best_so: 2.2, best_dc_src: 'Alpha', best_so_src: 'Gamma', computed_at: now }],
+      items: [{ canon_key: 'match-3', pair: '1X vs 2', home: 'Third', away: 'Match', ROI: 0.03, best_dc: 1.9, best_so: 2.2, best_dc_src: 'admiral_rs', best_so_src: 'mozzart', computed_at: now }],
       pagination: { limit: 100, offset: 0, count: 1, total: 1 },
     });
     http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({ latest_snapshot: { Alpha: now }, recent_normalized_counts: { Alpha: 18 } });

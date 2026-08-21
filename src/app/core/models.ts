@@ -1,4 +1,4 @@
-export type DataMode = 'live' | 'stale' | 'preview' | 'offline';
+export type DataMode = 'loading' | 'live' | 'stale' | 'preview' | 'offline';
 export type OddsScope = 'live' | 'prematch';
 export type SurebetKind = 'same-market' | 'cross-market';
 
@@ -13,6 +13,7 @@ export interface SurebetLeg {
   label: string;
   bookmaker: string;
   odds: number;
+  country?: 'RS' | 'BA' | null;
 }
 
 export interface SurebetOpportunity {

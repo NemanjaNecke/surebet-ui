@@ -12,7 +12,7 @@
     </nav>
     <div class="header-actions">
       <span class="data-state" [class.preview]="api.mode() !== 'live'">
-        <i></i>{{ api.mode() === 'stale' ? 'Poslednji učitani podaci' : realtime.connected() ? 'Prenos uživo' : api.mode() === 'live' ? 'Aktuelni podaci' : 'Demo prikaz' }}
+        <i></i>{{ api.mode() === 'stale' ? 'Poslednji učitani podaci' : realtime.connected() ? 'Prenos uživo' : api.mode() === 'live' ? 'Aktuelni podaci' : api.mode() === 'loading' ? 'Povezivanje' : session.enabled ? 'Veza nije dostupna' : 'Demo prikaz' }}
       </span>
       @if (session.enabled) {
         <button class="sign-in" (click)="session.authenticated() ? session.logout() : session.login()">
@@ -69,9 +69,20 @@
         <div><strong>Privremeni zastoj</strong><span>{{ api.errorMessage() }}</span></div>
         <div class="preview-actions"><button (click)="api.refresh('all')">Pokušaj ponovo</button></div>
       </section>
+    } @else if (api.mode() === 'loading') {
+      <section class="preview-banner" role="status">
+        @if (session.loading()) {
+          <div><strong>Proveravamo prijavu</strong><span>Sesija se obnavlja bez prikazivanja demo podataka.</span></div>
+        } @else if (!session.authenticated()) {
+          <div><strong>Prijava je potrebna</strong><span>Prijavite se za prikaz aktuelnih kvota.</span></div>
+          <div class="preview-actions"><button class="primary" (click)="session.login()">Prijavi se</button></div>
+        } @else {
+          <div><strong>Povezujemo podatke</strong><span>Prijava je završena; učitavamo aktuelne kvote bez demo prikaza.</span></div>
+        }
+      </section>
     } @else if (api.mode() !== 'live') {
       <section class="preview-banner" role="status">
-        <div><strong>Demo podaci</strong><span>{{ api.errorMessage() }}</span></div>
+        <div><strong>{{ session.enabled ? 'Podaci trenutno nisu dostupni' : 'Demo podaci' }}</strong><span>{{ api.errorMessage() }}</span></div>
         <div class="preview-actions">
           @if (session.enabled && !session.authenticated()) { <button class="primary" (click)="session.login()">Prijavi se</button> }
           <button (click)="api.refresh('all')">Pokušaj ponovo</button>
@@ -106,7 +117,6 @@
           </button>
         </div>
         <div class="scope-tabs" role="group" aria-label="Period ponude">
-          <button [class.active]="scope() === 'all'" (click)="setScope('all')">Sve</button>
           <button [class.active]="scope() === 'live'" (click)="setScope('live')"><i></i> Uživo</button>
           <button [class.active]="scope() === 'prematch'" (click)="setScope('prematch')">Pre meča</button>
         </div>
@@ -122,22 +132,39 @@
             }
           </div>
         </div>
-        @if (marketView() === 'odds') {
-          <label class="select-wrap"><span>Sport</span>
-            <select #sportSelect (change)="setSport(sportSelect.value)">
-              @for (item of sports(); track item) { <option [value]="item" [selected]="sport() === item">{{ item === 'All' ? 'Svi sportovi' : item }}</option> }
-            </select>
-          </label>
-        } @else {
+        <div>
+          <span>Sport</span>
+          <div class="filter-buttons sport-filter">
+            @for (item of sports(); track item) {
+              <button [class.active]="sport() === item" (click)="setSport(item)">{{ item === 'All' ? 'Svi sportovi' : item }}</button>
+            }
+          </div>
+        </div>
+        @if (marketView() === 'surebets') {
           <div>
             <span>Tip surebeta</span>
             <div class="filter-buttons opportunity-kind-filter">
               <button [class.active]="opportunityKind() === 'all'" (click)="setOpportunityKind('all')">Svi</button>
-              <button [class.active]="opportunityKind() === 'same-market'" (click)="setOpportunityKind('same-market')">Isto tržište</button>
-              <button class="cross-market-filter" [class.active]="opportunityKind() === 'cross-market'" (click)="setOpportunityKind('cross-market')">Cross-market</button>
+              <button [class.active]="opportunityKind() === 'same-market'" (click)="setOpportunityKind('same-market')">Ista država</button>
+              <button class="cross-market-filter" [class.active]="opportunityKind() === 'cross-market'" (click)="setOpportunityKind('cross-market')">Cross-market · RS + BiH</button>
             </div>
           </div>
         }
+        <div>
+          <span>Kladionica</span>
+          <div class="filter-buttons bookmaker-filter">
+            @for (item of bookmakers(); track item) {
+              <button [class.active]="bookmaker() === item" (click)="setBookmaker(item)">{{ displayName(item) }}</button>
+            }
+          </div>
+        </div>
+        <label class="select-wrap"><span>Vremenski period</span>
+          <select #timeSelect (change)="setTimeWindow(timeSelect.value)">
+            @for (hours of timeWindows; track hours) {
+              <option [value]="hours === null ? 'all' : hours" [selected]="timeWindowHours() === hours">{{ hours === null ? 'Sve' : hours === 1 ? '1 sat' : hours <= 4 ? hours + ' sata' : hours + ' sati' }}</option>
+            }
+          </select>
+        </label>
         <label class="select-wrap"><span>Po stranici</span>
           <select #sizeSelect (change)="setPageSize(sizeSelect.value)">
             @for (size of pageSizes; track size) { <option [value]="size" [selected]="pageSize() === size">{{ size }}</option> }
@@ -185,7 +212,7 @@
               <div class="surebet-event">
                 <p>{{ item.league }}</p>
                 <div class="opportunity-tags">
-                  <span class="opportunity-type" [class.cross-market]="item.kind === 'cross-market'">{{ item.kind === 'cross-market' ? 'CROSS-MARKET' : 'ISTO TRŽIŠTE' }}</span>
+                  <span class="opportunity-type" [class.cross-market]="item.kind === 'cross-market'">{{ item.kind === 'cross-market' ? 'CROSS-MARKET · RS + BiH' : 'ISTA DRŽAVA' }}</span>
                   @if (item.pair) { <span class="opportunity-pair">{{ item.pair }}</span> }
                 </div>
                 <h3>{{ item.fixture }}</h3>
@@ -201,7 +228,7 @@
                 </span>
               </div>
               <div class="surebet-legs">
-                @for (leg of item.legs; track leg.label) { <div><span>{{ leg.label }}</span><small>{{ displayName(leg.bookmaker) }}</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div> }
+                @for (leg of item.legs; track leg.label) { <div><span>{{ leg.label }}</span><small>{{ displayName(leg.bookmaker) }}@if (leg.country) { · {{ leg.country === 'RS' ? 'Srbija' : 'BiH' }} }</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div> }
               </div>
               <div class="surebet-action"><span><i></i> {{ item.ageSeconds }} s</span><button (click)="openOpportunity(item)">Raspodela uloga <b>→</b></button></div>
             </article>
