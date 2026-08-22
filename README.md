@@ -56,8 +56,7 @@ Add the final production portal origin to the same three lists before deployment
 - `/api/v1/matches/{id}/odds`
 - `/api/v1/prematch/matches/{id}/odds`
 - `/api/v1/surebets/live`
-- `/api/v1/surebets/prematch/1x2`
-- `/api/v1/surebets/prematch/dc`
+- `/api/v1/surebets/prematch`
 - `/api/v1/bookmakers/health`
 - `/api/v1/auth/realtime-ticket`
 

@@ -322,7 +322,7 @@ export class Dashboard {
   marketName(value: string): string {
     return ({
       All: 'Sva tržišta',
-      '2-Way': '2 ishoda',
+      '2-Way': 'Pobednik',
       DC: 'Dupla šansa',
       'O/U': 'Više/Manje',
       BTTS: 'Oba daju gol',

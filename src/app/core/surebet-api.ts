@@ -117,11 +117,8 @@ export class SurebetApi {
       liveSurebets: this.http
         .get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: liveParams })
         .pipe(timeout(8000)),
-      prematch1x2: this.http
-        .get<PageResponse>(`${API_ROOT}/surebets/prematch/1x2`, { params: prematchParams })
-        .pipe(timeout(8000)),
-      prematchDc: this.http
-        .get<PageResponse>(`${API_ROOT}/surebets/prematch/dc`, { params: prematchParams })
+      prematchSurebets: this.http
+        .get<CollectionResponse>(`${API_ROOT}/surebets/prematch`, { params: prematchParams })
         .pipe(timeout(8000)),
       health: this.http
         .get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`)
@@ -145,14 +142,9 @@ export class SurebetApi {
           this.liveOpportunities = payload.liveSurebets.items.map((row, index) =>
             this.toOpportunity(row, index, 'live'),
           );
-          this.prematchOpportunities = [
-            ...payload.prematch1x2.items.map((row, index) =>
-              this.toOpportunity(row, index, 'prematch', '1X2'),
-            ),
-            ...payload.prematchDc.items.map((row, index) =>
-              this.toOpportunity(row, index, 'prematch', 'DC'),
-            ),
-          ];
+          this.prematchOpportunities = payload.prematchSurebets.items.map((row, index) =>
+            this.toOpportunity(row, index, 'prematch'),
+          );
           this.bookmakers = this.toBookmakers(payload.health);
           return this.combinedSnapshot();
         }),
@@ -270,15 +262,14 @@ export class SurebetApi {
   }
 
   private refreshPrematchSurebets(limited: HttpParams): void {
-    forkJoin({
-      one: this.http.get<PageResponse>(`${API_ROOT}/surebets/prematch/1x2`, { params: limited }).pipe(timeout(15_000)),
-      dc: this.http.get<PageResponse>(`${API_ROOT}/surebets/prematch/dc`, { params: limited }).pipe(timeout(15_000)),
-    }).pipe(catchError(() => of(null))).subscribe((payload) => {
+    this.http.get<CollectionResponse>(`${API_ROOT}/surebets/prematch`, { params: limited }).pipe(
+      timeout(15_000),
+      catchError(() => of(null)),
+    ).subscribe((payload) => {
       if (!payload) return;
-      this.prematchOpportunities = [
-        ...payload.one.items.map((row, index) => this.toOpportunity(row, index, 'prematch', '1X2')),
-        ...payload.dc.items.map((row, index) => this.toOpportunity(row, index, 'prematch', 'DC')),
-      ];
+      this.prematchOpportunities = payload.items.map((row, index) =>
+        this.toOpportunity(row, index, 'prematch'),
+      );
       this.snapshotState.set(this.combinedSnapshot());
     });
   }
@@ -444,7 +435,7 @@ export class SurebetApi {
       liveState: this.toLiveState(row),
       kind,
       pair: pair || null,
-      market: this.marketLabel(rawMarket, legs.length),
+      market: String(row['market_label'] ?? this.marketLabel(rawMarket, legs.length)),
       fixture: `${String(row['home'] ?? 'Home')} — ${String(row['away'] ?? 'Away')}`,
       league: String(row['league'] ?? 'Unknown league'),
       kickoff: String(row['kickoff_utc'] ?? ''),
@@ -468,7 +459,7 @@ export class SurebetApi {
         const rawOutcomes = Array.isArray(market['outcomes']) ? (market['outcomes'] as Record<string, unknown>[]) : [];
         return {
           id: `${marketKey}-${String(market['period'] ?? 'FT')}-${String(market['line'] ?? '')}-${marketIndex}`,
-          label: this.marketLabel(marketKey, rawOutcomes.length),
+          label: String(market['market_label'] ?? this.marketLabel(marketKey)),
           marketKey,
           period: String(market['period'] ?? 'FT'),
           line: market['line'] === null || market['line'] === undefined ? null : Number(market['line']),
@@ -511,12 +502,19 @@ export class SurebetApi {
     };
   }
 
-  private marketLabel(rawMarket: string, outcomeCount = 0): string {
+  private marketLabel(rawMarket: string, _outcomeCount = 0): string {
     const normalized = rawMarket.toUpperCase();
-    return ({ 'FT.1X2': '1X2', 'FT.DC': 'DC', 'FT.OU': 'O/U', 'FT.BTTS': 'BTTS' } as Record<string, string>)[normalized]
-      ?? (normalized === 'DC' ? 'DC' : normalized.startsWith('RAW.')
-        ? outcomeCount ? `Tržište sa ${outcomeCount} ishoda` : 'Dodatno tržište'
-        : outcomeCount === 2 ? '2-Way' : rawMarket);
+    return ({
+      'FT.1X2': 'Konačan ishod',
+      'FT.DC': 'Dupla šansa',
+      'FT.OU': 'Više/Manje',
+      'FT.BTTS': 'Oba tima daju gol',
+      'FT.2WAY': 'Pobednik',
+      'FT.DNB': 'Bez nerešenog ishoda',
+      'FT.OE': 'Par/Nepar',
+      'FT.HANDICAP': 'Hendikep',
+      'FT.CORRECT_SCORE': 'Tačan rezultat',
+    } as Record<string, string>)[normalized] ?? rawMarket;
   }
 
   private countryForBookmaker(value: string): 'RS' | 'BA' | null {
