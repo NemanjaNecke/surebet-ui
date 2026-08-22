@@ -15,9 +15,14 @@
         <i></i>{{ api.mode() === 'stale' ? 'Poslednji učitani podaci' : realtime.connected() ? 'Prenos uživo' : api.mode() === 'live' ? 'Aktuelni podaci' : api.mode() === 'loading' ? 'Povezivanje' : session.enabled ? 'Veza nije dostupna' : 'Demo prikaz' }}
       </span>
       @if (session.enabled) {
-        <button class="sign-in" (click)="session.authenticated() ? session.logout() : session.login()">
-          {{ session.authenticated() ? 'Odjava' : 'Prijava' }}
-        </button>
+        @if (session.loading()) {
+          <button class="sign-in checking" disabled><i></i> Provera naloga</button>
+        } @else if (session.authenticated()) {
+          <button class="sign-in" (click)="session.logout()">Odjava</button>
+        } @else {
+          <a class="register-link" routerLink="/registracija">Registracija</a>
+          <a class="sign-in" routerLink="/prijava">Prijava</a>
+        }
       }
     </div>
   </header>
@@ -64,16 +69,18 @@
       </div>
     </section>
 
-    @if (api.mode() === 'stale') {
+    @if (session.enabled && session.loading()) {
+      <section class="preview-banner session-restore" role="status">
+        <div><strong>Obnavljamo sesiju</strong><span>Poslednji podaci ostaju na ekranu dok bez prekida proveravamo nalog i nove kvote.</span></div>
+      </section>
+    } @else if (api.mode() === 'stale') {
       <section class="preview-banner" role="status">
         <div><strong>Privremeni zastoj</strong><span>{{ api.errorMessage() }}</span></div>
         <div class="preview-actions"><button (click)="api.refresh('all')">Pokušaj ponovo</button></div>
       </section>
     } @else if (api.mode() === 'loading') {
       <section class="preview-banner" role="status">
-        @if (session.loading()) {
-          <div><strong>Proveravamo prijavu</strong><span>Sesija se obnavlja bez prikazivanja demo podataka.</span></div>
-        } @else if (!session.authenticated()) {
+        @if (!session.authenticated()) {
           <div><strong>Prijava je potrebna</strong><span>Prijavite se za prikaz aktuelnih kvota.</span></div>
           <div class="preview-actions"><button class="primary" (click)="session.login()">Prijavi se</button></div>
         } @else {
@@ -195,9 +202,12 @@
               <div class="fixture-teams">
                 @for (team of fixtureTeams(item.fixture); track team) {
                   <div class="fixture-team">
-                    @if (teamLogoUrl(team); as logo) {
-                      <img [src]="logo" [alt]="team + ' grb'" loading="lazy" (error)="hideBrokenImage($event)" />
-                    }
+                    <span class="team-emblem" aria-hidden="true">
+                      <span>{{ teamInitials(team) }}</span>
+                      @if (teamLogoUrl(team); as logo) {
+                        <img [src]="logo" [alt]="team + ' grb'" loading="lazy" decoding="async" referrerpolicy="no-referrer" (error)="hideBrokenImage($event)" />
+                      }
+                    </span>
                     <h3>{{ team }}</h3>
                   </div>
                 }

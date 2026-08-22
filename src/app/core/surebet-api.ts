@@ -1,5 +1,5 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { catchError, forkJoin, map, Observable, of, throwError, TimeoutError, timeout } from 'rxjs';
 
 import {
@@ -19,44 +19,84 @@ import {
 } from './models';
 import { PREVIEW_SNAPSHOT } from './preview-data';
 import { authEnabled, runtimeConfig } from './runtime-config';
+import { Session } from './session';
 
 const API_ROOT = runtimeConfig.apiBaseUrl;
 const LIVE_PAGE_LIMIT = 25;
 const PREMATCH_PAGE_LIMIT = 12;
 const LIVE_REFRESH_MS = 60_000;
 const PREMATCH_REFRESH_MS = 120_000;
+const DASHBOARD_CACHE_KEY = 'sureedge.dashboard.v1';
 const EMPTY_SNAPSHOT: DashboardSnapshot = {
   bestOdds: [], opportunities: [], bookmakers: [], trend: [], liveEvents: 0, prematchEvents: 0,
 };
+
+interface CachedDashboardSnapshot {
+  version: 1;
+  savedAt: string;
+  snapshot: DashboardSnapshot;
+}
+
+function readCachedSnapshot(): CachedDashboardSnapshot | null {
+  try {
+    const raw = sessionStorage.getItem(DASHBOARD_CACHE_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<CachedDashboardSnapshot>;
+    if (value.version !== 1 || !value.snapshot || !Array.isArray(value.snapshot.bestOdds)
+      || !Array.isArray(value.snapshot.opportunities) || !Array.isArray(value.snapshot.bookmakers)) {
+      sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
+      return null;
+    }
+    return value as CachedDashboardSnapshot;
+  } catch {
+    return null;
+  }
+}
 
 @Injectable({ providedIn: 'root' })
 export class SurebetApi {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly snapshotState = signal<DashboardSnapshot>(authEnabled ? EMPTY_SNAPSHOT : PREVIEW_SNAPSHOT);
-  private liveBest: BestOddsMarket[] = [];
-  private prematchCurrentBest: BestOddsMarket[] = [];
-  private prematchHistoryBest: BestOddsMarket[] = [];
-  private liveOpportunities: SurebetOpportunity[] = [];
-  private prematchOpportunities: SurebetOpportunity[] = [];
-  private bookmakers: BookmakerHealth[] = [];
-  private hasSuccessfulSnapshot = false;
+  private readonly session = inject(Session);
+  private readonly restored = authEnabled ? readCachedSnapshot() : null;
+  private readonly snapshotState = signal<DashboardSnapshot>(
+    this.restored?.snapshot ?? (authEnabled ? EMPTY_SNAPSHOT : PREVIEW_SNAPSHOT),
+  );
+  private liveBest: BestOddsMarket[] = this.restored?.snapshot.bestOdds.filter((item) => item.scope === 'live') ?? [];
+  private prematchCurrentBest: BestOddsMarket[] = this.restored?.snapshot.bestOdds.filter(
+    (item) => item.scope === 'prematch' && !item.historical,
+  ) ?? [];
+  private prematchHistoryBest: BestOddsMarket[] = this.restored?.snapshot.bestOdds.filter(
+    (item) => item.scope === 'prematch' && item.historical,
+  ) ?? [];
+  private liveOpportunities: SurebetOpportunity[] = this.restored?.snapshot.opportunities.filter(
+    (item) => item.scope === 'live',
+  ) ?? [];
+  private prematchOpportunities: SurebetOpportunity[] = this.restored?.snapshot.opportunities.filter(
+    (item) => item.scope === 'prematch',
+  ) ?? [];
+  private bookmakers: BookmakerHealth[] = this.restored?.snapshot.bookmakers ?? [];
+  private hasSuccessfulSnapshot = Boolean(this.restored);
   private consecutiveTransientFailures = 0;
-  private liveEventTotal = authEnabled ? 0 : PREVIEW_SNAPSHOT.liveEvents;
-  private prematchEventTotal = authEnabled ? 0 : PREVIEW_SNAPSHOT.prematchEvents;
-  private prematchCurrentTotal = authEnabled ? 0 : PREVIEW_SNAPSHOT.prematchEvents;
+  private liveEventTotal = this.restored?.snapshot.liveEvents ?? (authEnabled ? 0 : PREVIEW_SNAPSHOT.liveEvents);
+  private prematchEventTotal = this.restored?.snapshot.prematchEvents ?? (authEnabled ? 0 : PREVIEW_SNAPSHOT.prematchEvents);
+  private prematchCurrentTotal = this.prematchEventTotal;
   private prematchHistoryTotal = 0;
   private liveInFlight = false;
   private prematchInFlight = false;
 
   readonly snapshot = this.snapshotState.asReadonly();
-  readonly mode = signal<DataMode>(authEnabled ? 'loading' : 'preview');
+  readonly mode = signal<DataMode>(authEnabled ? (this.restored ? 'stale' : 'loading') : 'preview');
   readonly loading = signal(false);
   readonly prematchLoading = signal(false);
-  readonly lastUpdated = signal<Date | null>(null);
-  readonly lastLiveUpdated = signal<Date | null>(null);
-  readonly lastPrematchUpdated = signal<Date | null>(null);
-  readonly errorMessage = signal('Prijavite se za prikaz aktuelnih regionalnih kvota.');
+  readonly lastUpdated = signal<Date | null>(this.restored ? new Date(this.restored.savedAt) : null);
+  readonly lastLiveUpdated = signal<Date | null>(this.restored ? new Date(this.restored.savedAt) : null);
+  readonly lastPrematchUpdated = signal<Date | null>(this.restored ? new Date(this.restored.savedAt) : null);
+  readonly errorMessage = signal(
+    this.restored
+      ? 'Prikazani su poslednji podaci dok u pozadini proveravamo nove kvote.'
+      : 'Prijavite se za prikaz aktuelnih regionalnih kvota.',
+  );
   readonly comparison = signal<MatchComparison | null>(null);
   readonly comparisonLoading = signal(false);
   readonly comparisonError = signal('');
@@ -65,23 +105,38 @@ export class SurebetApi {
   );
 
   constructor() {
-    // Authenticated deployments wait for Session/Auth0 to finish restoring the
-    // login before making paid API calls. This avoids a visible initial 401 ->
-    // demo -> live flash. Unauthenticated preview builds still load directly.
+    effect(() => {
+      if (!authEnabled) return;
+      if (this.session.loading()) return;
+      if (this.session.authenticated()) {
+        this.refresh('all', !this.hasSuccessfulSnapshot);
+      } else {
+        this.clearPrivateSnapshot();
+      }
+    });
     if (!authEnabled) this.refresh('all');
     const liveTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') this.refresh('live', false);
+      if (document.visibilityState === 'visible' && this.canRequest()) this.refresh('live', false);
     }, LIVE_REFRESH_MS);
     const prematchTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') this.refresh('prematch', false);
+      if (document.visibilityState === 'visible' && this.canRequest()) this.refresh('prematch', false);
     }, PREMATCH_REFRESH_MS);
+    const refreshVisible = () => {
+      if (document.visibilityState !== 'visible' || !this.canRequest()) return;
+      this.refresh('live', false);
+      const lastPrematch = this.lastPrematchUpdated()?.getTime() ?? 0;
+      if (Date.now() - lastPrematch >= PREMATCH_REFRESH_MS) this.refresh('prematch', false);
+    };
+    document.addEventListener('visibilitychange', refreshVisible);
     this.destroyRef.onDestroy(() => {
       window.clearInterval(liveTimer);
       window.clearInterval(prematchTimer);
+      document.removeEventListener('visibilitychange', refreshVisible);
     });
   }
 
   refresh(scope: 'all' | OddsScope = 'live', foreground = true): void {
+    if (!this.canRequest()) return;
     if (scope === 'prematch') {
       this.refreshPrematch(foreground);
       return;
@@ -152,7 +207,7 @@ export class SurebetApi {
         }),
       )
       .subscribe((snapshot) => {
-        if (snapshot) this.snapshotState.set(snapshot);
+        if (snapshot) this.publishSnapshot(snapshot);
         if (snapshot && snapshot !== PREVIEW_SNAPSHOT) {
           this.hasSuccessfulSnapshot = true;
           this.consecutiveTransientFailures = 0;
@@ -191,7 +246,7 @@ export class SurebetApi {
       }),
     ).subscribe((snapshot) => {
       if (snapshot) {
-        this.snapshotState.set(snapshot);
+        this.publishSnapshot(snapshot);
         this.hasSuccessfulSnapshot = true;
         this.consecutiveTransientFailures = 0;
         this.mode.set('live');
@@ -226,7 +281,7 @@ export class SurebetApi {
       }),
     ).subscribe((snapshot) => {
       if (snapshot) {
-        this.snapshotState.set(snapshot);
+        this.publishSnapshot(snapshot);
         this.hasSuccessfulSnapshot = true;
         this.consecutiveTransientFailures = 0;
         this.mode.set('live');
@@ -258,7 +313,7 @@ export class SurebetApi {
       );
       this.prematchHistoryTotal = payload.total ?? payload.count;
       this.prematchEventTotal = this.prematchCurrentTotal + this.prematchHistoryTotal;
-      this.snapshotState.set(this.combinedSnapshot());
+      this.publishSnapshot(this.combinedSnapshot());
     });
   }
 
@@ -271,7 +326,7 @@ export class SurebetApi {
       this.prematchOpportunities = payload.items.map((row, index) =>
         this.toOpportunity(row, index, 'prematch'),
       );
-      this.snapshotState.set(this.combinedSnapshot());
+      this.publishSnapshot(this.combinedSnapshot());
     });
   }
 
@@ -320,6 +375,44 @@ export class SurebetApi {
   closeComparison(): void {
     this.comparison.set(null);
     this.comparisonError.set('');
+  }
+
+  private canRequest(): boolean {
+    return !authEnabled || (this.session.ready() && this.session.authenticated());
+  }
+
+  private publishSnapshot(snapshot: DashboardSnapshot): void {
+    this.snapshotState.set(snapshot);
+    if (!authEnabled) return;
+    try {
+      sessionStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        snapshot,
+      } satisfies CachedDashboardSnapshot));
+    } catch {
+      // A full provider market can exceed a browser's storage quota. Rendering
+      // and realtime refresh continue normally even when the optional cache
+      // cannot be written.
+    }
+  }
+
+  private clearPrivateSnapshot(): void {
+    sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
+    this.liveBest = [];
+    this.prematchCurrentBest = [];
+    this.prematchHistoryBest = [];
+    this.liveOpportunities = [];
+    this.prematchOpportunities = [];
+    this.bookmakers = [];
+    this.liveEventTotal = 0;
+    this.prematchEventTotal = 0;
+    this.prematchCurrentTotal = 0;
+    this.prematchHistoryTotal = 0;
+    this.hasSuccessfulSnapshot = false;
+    this.snapshotState.set(EMPTY_SNAPSHOT);
+    this.mode.set('loading');
+    this.errorMessage.set('Prijavite se za prikaz aktuelnih regionalnih kvota.');
   }
 
   private combinedSnapshot(): DashboardSnapshot {

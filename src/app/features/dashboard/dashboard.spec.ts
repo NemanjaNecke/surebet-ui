@@ -6,6 +6,7 @@ import { PREVIEW_SNAPSHOT } from '../../core/preview-data';
 import { RealtimeUpdates } from '../../core/realtime-updates';
 import { Session } from '../../core/session';
 import { SurebetApi } from '../../core/surebet-api';
+import { TeamLogos } from '../../core/team-logos';
 import { Dashboard } from './dashboard';
 
 describe('Dashboard', () => {
@@ -30,12 +31,16 @@ describe('Dashboard', () => {
     snapshot.set(PREVIEW_SNAPSHOT);
     api.mode.set('preview');
     api.errorMessage.set('Demo podaci');
+    session.enabled = false;
+    session.authenticated.set(false);
+    session.loading.set(false);
     await TestBed.configureTestingModule({
       imports: [Dashboard],
       providers: [
         { provide: SurebetApi, useValue: api },
         { provide: Session, useValue: session },
         { provide: RealtimeUpdates, useValue: { connected: signal(false) } },
+        { provide: TeamLogos, useValue: { url: vi.fn(() => null) } },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(Dashboard);
@@ -46,6 +51,20 @@ describe('Dashboard', () => {
     expect(fixture.nativeElement.querySelector('.preview-banner')?.textContent).toContain('Demo podaci');
     expect(fixture.nativeElement.querySelectorAll('.event-card')).toHaveLength(2);
     expect(fixture.nativeElement.querySelector('.event-card time')?.textContent).toContain('1:0');
+  });
+
+  it('never renders a false logged-out action while the session is restoring', () => {
+    session.enabled = true;
+    session.loading.set(true);
+    fixture.detectChanges();
+    const header = fixture.nativeElement.querySelector('.header-actions')?.textContent ?? '';
+    expect(header).toContain('Provera naloga');
+    expect(header).not.toContain('Registracija');
+
+    session.loading.set(false);
+    session.authenticated.set(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.header-actions')?.textContent).toContain('Odjava');
   });
 
   it('marks retained prematch games as history', () => {

@@ -1,0 +1,49 @@
+<main class="auth-shell">
+  <a class="brand" routerLink="/" aria-label="SureEdge početna">
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+    <strong>Sure<span>Edge</span></strong>
+  </a>
+
+  <section class="auth-card">
+    <div class="auth-copy">
+      <p><span></span> Regionalni monitor kvota</p>
+      <h1>{{ mode() === 'signup' ? 'Napravite nalog' : 'Dobro došli nazad' }}</h1>
+      <p class="lead">
+        {{ mode() === 'signup'
+          ? 'Otvorite nalog i pratite najbolje regionalne kvote, surebetove i promene u realnom vremenu.'
+          : 'Prijavite se da nastavite tamo gde ste stali. Vaša sesija ostaje aktivna i posle osvežavanja stranice.' }}
+      </p>
+
+      @if (session.loading()) {
+        <div class="auth-status"><i></i><span>Proveravamo postojeću sesiju…</span></div>
+      } @else if (session.authenticated()) {
+        <div class="auth-status success"><i></i><span>Već ste prijavljeni.</span></div>
+        <a class="primary-link" routerLink="/">Otvori kontrolnu tablu</a>
+      } @else {
+        <button class="primary" (click)="continue()">
+          {{ mode() === 'signup' ? 'Nastavi na registraciju' : 'Nastavi na prijavu' }}
+          <span aria-hidden="true">→</span>
+        </button>
+        <p class="security-note">Prijava i lozinka obrađuju se kroz zaštićeni Auth0 ekran. SureEdge ne čuva vašu lozinku.</p>
+      }
+
+      <div class="switch-mode">
+        @if (mode() === 'signup') {
+          Već imate nalog? <a routerLink="/prijava">Prijavite se</a>
+        } @else {
+          Nemate nalog? <a routerLink="/registracija">Registrujte se</a>
+        }
+      </div>
+    </div>
+
+    <aside>
+      <span class="live-dot"><i></i> Podaci u realnom vremenu</span>
+      <strong>Najbolja kvota.<br /><em>Bez čekanja.</em></strong>
+      <ul>
+        <li><i>01</i><span>Uživo i pre meča, jasno razdvojeno</span></li>
+        <li><i>02</i><span>RS i BiH tržišta u jednom prikazu</span></li>
+        <li><i>03</i><span>Tiho osvežavanje bez nestajanja sadržaja</span></li>
+      </ul>
+    </aside>
+  </section>
+</main>

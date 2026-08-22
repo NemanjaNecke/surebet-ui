@@ -8,7 +8,8 @@ import { Session } from './session';
 import { SurebetApi } from './surebet-api';
 
 const REFRESH_EVENT_TYPES = new Set(['odds.snapshot', 'odds.update', 'match.removed']);
-const REALTIME_REFRESH_THROTTLE_MS = 15_000;
+const REALTIME_REFRESH_THROTTLE_MS = 5_000;
+const MAX_RECONNECT_DELAY_MS = 30_000;
 
 export function shouldRefreshFromRealtimeMessage(data: unknown): boolean {
   if (typeof data !== 'string') return false;
@@ -30,13 +31,14 @@ export class RealtimeUpdates {
   private reconnectTimer: number | null = null;
   private refreshTimer: number | null = null;
   private lastRefreshAt = 0;
+  private reconnectAttempts = 0;
 
   readonly connected = signal(false);
 
   constructor() {
     effect(() => {
+      if (this.session.loading()) return;
       if (this.session.enabled && this.session.authenticated()) {
-        this.api.refresh('all');
         this.connect();
       } else {
         this.disconnect();
@@ -62,7 +64,10 @@ export class RealtimeUpdates {
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     url.searchParams.set('ticket', ticket);
     this.socket = new WebSocket(url);
-    this.socket.onopen = () => this.connected.set(true);
+    this.socket.onopen = () => {
+      this.reconnectAttempts = 0;
+      this.connected.set(true);
+    };
     this.socket.onmessage = (event) => {
       if (!shouldRefreshFromRealtimeMessage(event.data)) return;
       if (this.refreshTimer !== null) return;
@@ -83,10 +88,13 @@ export class RealtimeUpdates {
 
   private scheduleReconnect(): void {
     if (!this.session.authenticated() || this.reconnectTimer !== null) return;
+    const baseDelay = Math.min(1000 * 2 ** this.reconnectAttempts, MAX_RECONNECT_DELAY_MS);
+    const delay = baseDelay + Math.round(Math.random() * Math.min(1000, baseDelay / 4));
+    this.reconnectAttempts += 1;
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
-    }, 5000);
+    }, delay);
   }
 
   private disconnect(): void {
@@ -94,6 +102,7 @@ export class RealtimeUpdates {
     if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
     this.reconnectTimer = null;
     this.refreshTimer = null;
+    this.reconnectAttempts = 0;
     if (this.socket) {
       this.socket.onclose = null;
       this.socket.close();

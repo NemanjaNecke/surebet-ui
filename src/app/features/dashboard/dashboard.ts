@@ -1,18 +1,19 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { BestOddsMarket, OddsScope, SurebetKind, SurebetOpportunity } from '../../core/models';
 import { RealtimeUpdates } from '../../core/realtime-updates';
 import { Session } from '../../core/session';
 import { SurebetApi } from '../../core/surebet-api';
-import { verifiedTeamLogoUrl } from '../../core/team-logos';
+import { TeamLogos } from '../../core/team-logos';
 
 type OpportunityKindFilter = 'all' | SurebetKind;
 type PrematchTimeWindow = 'today' | '1h' | '3h' | 'tomorrow' | '3d' | 'all';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [DatePipe, DecimalPipe],
+  imports: [DatePipe, DecimalPipe, RouterLink],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,6 +22,7 @@ export class Dashboard {
   readonly api = inject(SurebetApi);
   readonly session = inject(Session);
   readonly realtime = inject(RealtimeUpdates);
+  private readonly teamLogos = inject(TeamLogos);
   readonly search = signal('');
   readonly searchInput = signal('');
   readonly suggestionsOpen = signal(false);
@@ -285,7 +287,12 @@ export class Dashboard {
   }
 
   teamLogoUrl(team: string): string | null {
-    return verifiedTeamLogoUrl(team);
+    return this.teamLogos.url(team);
+  }
+
+  teamInitials(team: string): string {
+    const words = team.trim().split(/\s+/).filter((word) => !/^(?:fc|fk|cf|sc|ac|nk)$/i.test(word));
+    return words.slice(0, 2).map((word) => word[0]?.toLocaleUpperCase() ?? '').join('') || '?';
   }
 
   hideBrokenImage(event: Event): void {

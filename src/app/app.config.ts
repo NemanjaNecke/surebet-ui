@@ -37,7 +37,10 @@ export function createAppConfig(): ApplicationConfig {
             },
           ],
         },
-        cacheLocation: 'memory',
+        // Keep the authenticated session across a hard browser refresh. Auth0
+        // still owns token rotation; the UI no longer briefly renders a logged
+        // out state while the SDK restores an in-memory cache from scratch.
+        cacheLocation: 'localstorage',
         useRefreshTokens: true,
       }),
     );

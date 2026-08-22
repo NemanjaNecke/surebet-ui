@@ -10,6 +10,9 @@ describe('verifiedTeamLogoUrl', () => {
     expect(verifiedTeamLogoUrl('Manchester City')).toBe(
       'https://ibet-365.com/content/club-icons/mancity.webp',
     );
+    expect(verifiedTeamLogoUrl('Peterborough')).toBe(
+      'https://ibet-365.com/content/club-icons/peterborough.webp',
+    );
   });
 
   it('does not manufacture a URL for an unknown team', () => {

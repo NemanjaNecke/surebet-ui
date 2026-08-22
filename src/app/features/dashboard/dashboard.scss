@@ -21,6 +21,7 @@ nav button span { min-width: 18px; display: inline-grid; place-items: center; ma
 .data-state i { width: 7px; height: 7px; background: #19b77e; border-radius: 50%; box-shadow: 0 0 0 4px #19b77e20; }
 .data-state.preview i { background: #dc9b2e; box-shadow: 0 0 0 4px #dc9b2e20; }
 .sign-in { height: 36px; padding: 0 16px; color: #effff9; background: #14231d; border: 0; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.sign-in { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }.sign-in.checking { gap: 7px; color: #62716a; background: #edf1ef; }.sign-in.checking i { width: 11px; height: 11px; border: 2px solid #bdc8c2; border-top-color: #4d655b; border-radius: 50%; animation: spin .8s linear infinite; }.register-link { color: #52615b; font-size: 10px; font-weight: 700; text-decoration: none; }.register-link:hover { color: #0e7552; }
 
 main { overflow: hidden; }
 .hero { max-width: 1450px; display: grid; grid-template-columns: minmax(0, 1fr) 330px; align-items: end; gap: 9vw; margin: auto; padding: 70px clamp(20px, 5vw, 76px) 60px; }
@@ -48,6 +49,7 @@ h1 em { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
 .pulse-row span { font-size: 18px; font-weight: 750; }.pulse-row small { color: #88958f; font-size: 9px; }
 
 .preview-banner { max-width: 1310px; display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 0 auto 24px; padding: 13px 16px; color: #694709; background: #fff8e6; border: 1px solid #ead7a5; border-radius: 10px; }
+.preview-banner.session-restore { color: #1c644d; background: #eef9f4; border-color: #cfe9dd; }.preview-banner.session-restore strong { background: #177454; }
 .preview-banner div:first-child { display: flex; align-items: center; gap: 12px; }.preview-banner strong { padding: 5px 8px; color: #fff; background: #aa7417; border-radius: 6px; font-size: 9px; text-transform: uppercase; }.preview-banner span { font-size: 11px; }
 .preview-actions { display: flex; gap: 7px; }.preview-actions button { height: 31px; padding: 0 10px; color: #74500e; background: #fff; border: 1px solid #dfc98f; border-radius: 6px; font-size: 9px; font-weight: 700; }.preview-actions button.primary { color: #fff; background: #8d6113; border-color: #8d6113; }
 
@@ -78,7 +80,8 @@ h1 em { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
 .league { margin: 17px 0 5px; color: #7e8984; font-size: 9px; }.event-card h3, .surebet-card h3 { margin: 0; color: #17241f; font-size: 15px; letter-spacing: -.25px; }
 .fixture-teams { display: grid; gap: 5px; min-height: 42px; }
 .fixture-team { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.fixture-team img { width: 20px; height: 20px; object-fit: contain; flex: 0 0 20px; }
+.team-emblem { position: relative; width: 22px; height: 22px; display: grid; flex: 0 0 22px; place-items: center; overflow: hidden; color: #406158; background: #edf4f0; border: 1px solid #d9e5df; border-radius: 50%; font-size: 7px; font-weight: 850; letter-spacing: -.2px; }
+.team-emblem img { position: absolute; inset: 0; width: 100%; height: 100%; padding: 1px; object-fit: contain; background: #fff; }
 .fixture-team h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .market-title { display: flex; justify-content: space-between; margin: 19px 0 7px; color: #6e7a75; font-size: 8px; font-weight: 750; text-transform: uppercase; }.market-title small { color: #9aa39f; font-size: 8px; }
 .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }.price-grid.two-way { grid-template-columns: repeat(2, 1fr); }.best-price { min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 1px 7px; padding: 10px; background: #f3faf7; border: 1px solid #d7ece3; border-radius: 8px; }.best-price > span { color: #19805d; font-size: 9px; font-weight: 800; }.best-price strong { color: #15231d; font-size: 18px; text-align: right; }.best-price small { grid-column: 1 / -1; overflow: hidden; color: #74817b; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }

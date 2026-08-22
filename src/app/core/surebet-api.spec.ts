@@ -1,12 +1,15 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { SurebetApi } from './surebet-api';
 
 describe('SurebetApi', () => {
   it('combines live and prematch odds and surebets', () => {
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
     const api = TestBed.inject(SurebetApi);
     const http = TestBed.inject(HttpTestingController);
     const now = new Date().toISOString();

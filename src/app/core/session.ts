@@ -1,6 +1,7 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, computed, inject } from '@angular/core';
 import { AuthService, User } from '@auth0/auth0-angular';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
 
 import { authEnabled } from './runtime-config';
@@ -8,6 +9,7 @@ import { authEnabled } from './runtime-config';
 @Injectable({ providedIn: 'root' })
 export class Session {
   private readonly auth = inject(AuthService, { optional: true });
+  private readonly router = inject(Router);
   readonly enabled = authEnabled;
   readonly authenticated = toSignal(this.auth?.isAuthenticated$ ?? of(false), {
     initialValue: false,
@@ -19,12 +21,29 @@ export class Session {
     (this.auth?.user$ as Observable<User | null | undefined> | undefined) ?? of(null),
     { initialValue: null },
   );
+  readonly ready = computed(() => !this.enabled || !this.loading());
 
   login(): void {
-    this.auth?.loginWithRedirect();
+    void this.router.navigateByUrl('/prijava');
+  }
+
+  register(): void {
+    void this.router.navigateByUrl('/registracija');
+  }
+
+  authenticate(mode: 'login' | 'signup'): void {
+    const target = window.location.pathname.startsWith('/prijava')
+      || window.location.pathname.startsWith('/registracija')
+      ? '/'
+      : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    this.auth?.loginWithRedirect({
+      appState: { target },
+      authorizationParams: mode === 'signup' ? { screen_hint: 'signup' } : {},
+    });
   }
 
   logout(): void {
+    sessionStorage.removeItem('sureedge.dashboard.v1');
     this.auth?.logout({ logoutParams: { returnTo: window.location.origin } });
   }
 }
