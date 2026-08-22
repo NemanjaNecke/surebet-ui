@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
-import { catchError, forkJoin, map, of, TimeoutError, timeout } from 'rxjs';
+import { catchError, forkJoin, map, Observable, of, throwError, TimeoutError, timeout } from 'rxjs';
 
 import {
   BestOddsMarket,
@@ -117,9 +117,7 @@ export class SurebetApi {
       liveSurebets: this.http
         .get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: liveParams })
         .pipe(timeout(8000)),
-      prematchSurebets: this.http
-        .get<CollectionResponse>(`${API_ROOT}/surebets/prematch`, { params: prematchParams })
-        .pipe(timeout(8000)),
+      prematchSurebets: this.loadPrematchSurebets(prematchParams).pipe(timeout(8000)),
       health: this.http
         .get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`)
         .pipe(timeout(8000)),
@@ -262,7 +260,7 @@ export class SurebetApi {
   }
 
   private refreshPrematchSurebets(limited: HttpParams): void {
-    this.http.get<CollectionResponse>(`${API_ROOT}/surebets/prematch`, { params: limited }).pipe(
+    this.loadPrematchSurebets(limited).pipe(
       timeout(15_000),
       catchError(() => of(null)),
     ).subscribe((payload) => {
@@ -272,6 +270,24 @@ export class SurebetApi {
       );
       this.snapshotState.set(this.combinedSnapshot());
     });
+  }
+
+  private loadPrematchSurebets(params: HttpParams): Observable<CollectionResponse> {
+    return this.http.get<CollectionResponse>(`${API_ROOT}/surebets/prematch`, { params }).pipe(
+      catchError((error: HttpErrorResponse) => {
+        if (error.status !== 404) return throwError(() => error);
+        // Short deployment bridge: the current AWS image still exposes the
+        // two legacy routes. This branch disappears automatically as soon as
+        // the generic backend route is deployed.
+        return forkJoin({
+          oneXtwo: this.http.get<PageResponse>(`${API_ROOT}/surebets/prematch/1x2`, { params }),
+          doubleChance: this.http.get<PageResponse>(`${API_ROOT}/surebets/prematch/dc`, { params }),
+        }).pipe(map(({ oneXtwo, doubleChance }) => {
+          const items = [...oneXtwo.items, ...doubleChance.items];
+          return { items, count: items.length, total: items.length };
+        }));
+      }),
+    );
   }
 
   openComparison(item: BestOddsMarket): void {

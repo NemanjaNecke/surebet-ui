@@ -91,7 +91,15 @@ describe('SurebetApi', () => {
       request.url.endsWith('/odds/prematch/best') && request.params.get('history_only') === 'true')
       .flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
-    http.expectOne((request) => request.url.endsWith('/surebets/prematch')).flush({ count: 0, items: [] });
+    http.expectOne((request) => request.url.endsWith('/surebets/prematch')).flush(
+      {}, { status: 404, statusText: 'Not Found' },
+    );
+    http.expectOne((request) => request.url.endsWith('/surebets/prematch/1x2')).flush({
+      items: [], pagination: { limit: 50, offset: 0, count: 0, total: 0 },
+    });
+    http.expectOne((request) => request.url.endsWith('/surebets/prematch/dc')).flush({
+      items: [], pagination: { limit: 50, offset: 0, count: 0, total: 0 },
+    });
     http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
     expect(api.mode()).toBe('live');
     const lastSuccessfulSnapshot = api.snapshot();
