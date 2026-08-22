@@ -127,7 +127,7 @@
         <div>
           <span>Tržište</span>
           <div class="filter-buttons">
-            @for (item of markets; track item) {
+            @for (item of markets(); track item) {
               <button [class.active]="market() === item" (click)="setMarket(item)">{{ marketName(item) }}</button>
             }
           </div>

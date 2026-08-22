@@ -36,7 +36,12 @@ export class Dashboard {
   readonly mobileFiltersOpen = signal(false);
   readonly page = signal(1);
   readonly pageSize = signal(12);
-  readonly markets = ['All', '1X2', '2-Way', 'DC', 'O/U', 'BTTS'];
+  readonly markets = computed(() => [
+    'All',
+    ...new Set(this.api.snapshot().bestOdds
+      .filter((item) => item.scope === this.scope())
+      .map((item) => item.market)),
+  ]);
   readonly pageSizes = [12, 24, 48];
   readonly timeWindows: ReadonlyArray<{ value: PrematchTimeWindow; label: string }> = [
     { value: 'today', label: 'Danas' },
@@ -203,6 +208,7 @@ export class Dashboard {
 
   setScope(scope: OddsScope): void {
     this.scope.set(scope);
+    this.market.set('All');
     this.page.set(1);
     if (scope === 'prematch') this.api.refresh('prematch');
   }
