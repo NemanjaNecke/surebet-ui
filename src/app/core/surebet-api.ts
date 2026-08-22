@@ -22,7 +22,7 @@ import { authEnabled, runtimeConfig } from './runtime-config';
 
 const API_ROOT = runtimeConfig.apiBaseUrl;
 const LIVE_PAGE_LIMIT = 25;
-const PREMATCH_PAGE_LIMIT = 50;
+const PREMATCH_PAGE_LIMIT = 12;
 const LIVE_REFRESH_MS = 60_000;
 const PREMATCH_REFRESH_MS = 120_000;
 const EMPTY_SNAPSHOT: DashboardSnapshot = {
@@ -209,7 +209,6 @@ export class SurebetApi {
     this.prematchInFlight = true;
     if (foreground) this.prematchLoading.set(true);
     const limited = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
-    this.refreshPrematchHistory(limited);
     this.refreshPrematchSurebets(limited);
     this.http.get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: limited }).pipe(
       timeout(15_000),
@@ -237,6 +236,10 @@ export class SurebetApi {
       if (snapshot) this.lastUpdated.set(new Date());
       this.prematchInFlight = false;
       if (foreground) this.prematchLoading.set(false);
+      // Current prices are the interactive path. Load historical fixtures only
+      // after they have rendered so the two large prematch queries do not
+      // compete for the same database resources and blank the dashboard.
+      this.refreshPrematchHistory(limited);
     });
   }
 

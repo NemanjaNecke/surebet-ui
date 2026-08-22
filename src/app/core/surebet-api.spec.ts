@@ -23,7 +23,7 @@ describe('SurebetApi', () => {
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 1, total: 907, items: [bestMatch] });
     const prematchRequest = http.expectOne((request) =>
       request.url.endsWith('/odds/prematch/best') && !request.params.has('include_history'));
-    expect(prematchRequest.request.params.get('limit')).toBe('50');
+    expect(prematchRequest.request.params.get('limit')).toBe('12');
     prematchRequest.flush({ count: 1, total: 1834, items: [{ ...bestMatch, match_id: 'match-2' }] });
     const historyRequest = http.expectOne((request) =>
       request.url.endsWith('/odds/prematch/best') && request.params.get('history_only') === 'true');
