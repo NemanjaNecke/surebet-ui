@@ -83,6 +83,7 @@ export class SurebetApi {
   private prematchCurrentTotal = this.prematchEventTotal;
   private prematchHistoryTotal = 0;
   private liveInFlight = false;
+  private liveAuxInFlight = false;
   private prematchInFlight = false;
 
   readonly snapshot = this.snapshotState.asReadonly();
@@ -228,16 +229,12 @@ export class SurebetApi {
     this.liveInFlight = true;
     if (foreground) this.loading.set(true);
     const limited = new HttpParams().set('limit', LIVE_PAGE_LIMIT);
-    forkJoin({
-      odds: this.http.get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: limited }).pipe(timeout(8000)),
-      surebets: this.http.get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: limited }).pipe(timeout(8000)),
-      health: this.http.get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`).pipe(timeout(8000)),
-    }).pipe(
+    this.refreshLiveAuxiliary(limited);
+    this.http.get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: limited }).pipe(
+      timeout(20_000),
       map((payload) => {
-        this.liveBest = payload.odds.items.flatMap((row, index) => this.toBestOddsMarkets(row, index, 'live'));
-        this.liveEventTotal = payload.odds.total ?? payload.odds.count;
-        this.liveOpportunities = payload.surebets.items.map((row, index) => this.toOpportunity(row, index, 'live'));
-        this.bookmakers = this.toBookmakers(payload.health);
+        this.liveBest = payload.items.flatMap((row, index) => this.toBestOddsMarkets(row, index, 'live'));
+        this.liveEventTotal = payload.total ?? payload.count;
         return this.combinedSnapshot();
       }),
       catchError((error: HttpErrorResponse) => {
@@ -256,6 +253,28 @@ export class SurebetApi {
       if (snapshot) this.lastUpdated.set(new Date());
       this.liveInFlight = false;
       if (foreground) this.loading.set(false);
+    });
+  }
+
+  private refreshLiveAuxiliary(limited: HttpParams): void {
+    if (this.liveAuxInFlight) return;
+    this.liveAuxInFlight = true;
+    forkJoin({
+      surebets: this.http.get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: limited }).pipe(
+        timeout(20_000), catchError(() => of(null)),
+      ),
+      health: this.http.get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`).pipe(
+        timeout(20_000), catchError(() => of(null)),
+      ),
+    }).subscribe(({ surebets, health }) => {
+      if (surebets) {
+        this.liveOpportunities = surebets.items.map((row, index) =>
+          this.toOpportunity(row, index, 'live'),
+        );
+      }
+      if (health) this.bookmakers = this.toBookmakers(health);
+      if (surebets || health) this.publishSnapshot(this.combinedSnapshot());
+      this.liveAuxInFlight = false;
     });
   }
 
