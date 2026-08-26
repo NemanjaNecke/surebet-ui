@@ -23,15 +23,17 @@ describe('Dashboard', () => {
     healthyBookmakers: computed(() => snapshot().bookmakers.filter((item) => item.status === 'online').length),
     refresh: vi.fn(), openComparison: vi.fn(), closeComparison: vi.fn(),
   };
+  const sessionEnabled = signal(false);
   const session = {
-    enabled: false, authenticated: signal(false), loading: signal(false), user: signal(null), login: vi.fn(), logout: vi.fn(),
+    get enabled() { return sessionEnabled(); },
+    authenticated: signal(false), loading: signal(false), user: signal(null), login: vi.fn(), logout: vi.fn(),
   };
 
   beforeEach(async () => {
     snapshot.set(PREVIEW_SNAPSHOT);
     api.mode.set('preview');
     api.errorMessage.set('Demo podaci');
-    session.enabled = false;
+    sessionEnabled.set(false);
     session.authenticated.set(false);
     session.loading.set(false);
     await TestBed.configureTestingModule({
@@ -59,8 +61,9 @@ describe('Dashboard', () => {
   });
 
   it('never renders a false logged-out action while the session is restoring', () => {
-    session.enabled = true;
+    sessionEnabled.set(true);
     session.loading.set(true);
+    fixture.changeDetectorRef.markForCheck();
     fixture.detectChanges();
     const header = fixture.nativeElement.querySelector('.header-actions')?.textContent ?? '';
     expect(header).toContain('Provera naloga');
@@ -68,12 +71,14 @@ describe('Dashboard', () => {
 
     session.loading.set(false);
     session.authenticated.set(true);
+    fixture.changeDetectorRef.markForCheck();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.header-actions')?.textContent).toContain('Odjava');
   });
 
   it('marks retained prematch games as history', () => {
     fixture.componentInstance.setScope('prematch');
+    fixture.componentInstance.setTimeWindow('all');
     snapshot.set({
       ...PREVIEW_SNAPSHOT,
       bestOdds: PREVIEW_SNAPSHOT.bestOdds.map((item, index) =>
@@ -94,9 +99,23 @@ describe('Dashboard', () => {
     expect(banner).not.toContain('Demo podaci');
   });
 
+  it('retries stale data automatically without a manual refresh control', () => {
+    sessionEnabled.set(true);
+    session.authenticated.set(true);
+    api.mode.set('stale');
+    fixture.changeDetectorRef.markForCheck();
+    fixture.detectChanges();
+
+    const banner = fixture.nativeElement.querySelector('.preview-banner')?.textContent ?? '';
+    expect(banner).toContain('Automatski ponovni pokušaj');
+    expect(fixture.nativeElement.textContent).not.toContain('Osveži sada');
+    expect(fixture.nativeElement.textContent).not.toContain('Pokušaj ponovo');
+  });
+
   it('filters surebets by market', () => {
     fixture.componentInstance.marketView.set('surebets');
     fixture.componentInstance.setScope('prematch');
+    fixture.componentInstance.setTimeWindow('all');
     fixture.componentInstance.market.set('DC');
     fixture.detectChanges();
     const cards = fixture.nativeElement.querySelectorAll('.surebet-card');
@@ -107,9 +126,25 @@ describe('Dashboard', () => {
     expect(cards[0].textContent).toContain('1X vs 2');
   });
 
+  it('shows the filtered result count in every surebet badge', () => {
+    fixture.componentInstance.marketView.set('surebets');
+    fixture.componentInstance.setScope('prematch');
+    fixture.componentInstance.setOpportunityKind('cross-market');
+    fixture.detectChanges();
+
+    const expected = String(fixture.componentInstance.opportunities().length);
+    const headerBadge = fixture.nativeElement.querySelector('header nav button.active span');
+    const boardBadge = fixture.nativeElement.querySelector('.view-tabs button.active span');
+    const resultCount = fixture.nativeElement.querySelector('.result-summary strong');
+    expect(headerBadge?.textContent?.trim()).toBe(expected);
+    expect(boardBadge?.textContent?.trim()).toBe(expected);
+    expect(resultCount?.textContent?.trim()).toBe(expected);
+  });
+
   it('separates same-market and cross-market opportunities', () => {
     fixture.componentInstance.marketView.set('surebets');
     fixture.componentInstance.setScope('prematch');
+    fixture.componentInstance.setTimeWindow('all');
     fixture.componentInstance.setOpportunityKind('same-market');
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('.surebet-card')).toHaveLength(1);
@@ -121,11 +156,7 @@ describe('Dashboard', () => {
     expect(fixture.nativeElement.querySelector('.surebet-card')?.textContent).toContain('CROSS-MARKET');
   });
 
-  it('refreshes live data by default and prematch when selected', () => {
-    api.refresh.mockClear();
-    fixture.componentInstance.refreshCurrent();
-    expect(api.refresh).toHaveBeenCalledWith('live');
-
+  it('loads prematch data when prematch is selected', () => {
     api.refresh.mockClear();
     fixture.componentInstance.setScope('prematch');
     expect(api.refresh).toHaveBeenCalledWith('prematch');
@@ -155,6 +186,7 @@ describe('Dashboard', () => {
 
   it('keeps live and prematch filters isolated and paginates results', () => {
     fixture.componentInstance.setScope('prematch');
+    fixture.componentInstance.setTimeWindow('all');
     fixture.componentInstance.setPageSize('1');
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('.event-card')).toHaveLength(1);

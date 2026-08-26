@@ -8,7 +8,7 @@ import { Session } from './session';
 import { SurebetApi } from './surebet-api';
 
 const REFRESH_EVENT_TYPES = new Set(['odds.snapshot', 'odds.update', 'match.removed']);
-const REALTIME_REFRESH_THROTTLE_MS = 5_000;
+const REALTIME_REFRESH_THROTTLE_MS = 2_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 export function shouldRefreshFromRealtimeMessage(data: unknown): boolean {

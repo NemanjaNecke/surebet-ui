@@ -123,7 +123,7 @@ describe('SurebetApi', () => {
     failLiveRefresh();
 
     expect(api.mode()).toBe('stale');
-    expect(api.snapshot()).toBe(lastSuccessfulSnapshot);
+    expect(api.snapshot()).toStrictEqual(lastSuccessfulSnapshot);
     expect(api.errorMessage()).toContain('poslednji uspešno učitani podaci');
     http.verify({ ignoreCancelled: true });
   });

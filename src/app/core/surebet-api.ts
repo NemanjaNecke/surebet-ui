@@ -24,7 +24,9 @@ import { Session } from './session';
 const API_ROOT = runtimeConfig.apiBaseUrl;
 const LIVE_PAGE_LIMIT = 25;
 const PREMATCH_PAGE_LIMIT = 12;
-const LIVE_REFRESH_MS = 60_000;
+// WebSocket events are primary. This invisible poll closes gaps after tunnel
+// reconnects without replacing the rendered snapshot or showing a loader.
+const LIVE_REFRESH_MS = 15_000;
 const PREMATCH_REFRESH_MS = 120_000;
 const DASHBOARD_CACHE_KEY = 'sureedge.dashboard.v1';
 const EMPTY_SNAPSHOT: DashboardSnapshot = {
@@ -377,7 +379,10 @@ export class SurebetApi {
     this.comparisonLoading.set(true);
     const prefix = item.scope === 'prematch' ? '/prematch' : '';
     this.http
-      .get<Record<string, unknown>>(`${API_ROOT}${prefix}/matches/${encodeURIComponent(item.matchId)}/odds`)
+      .get<Record<string, unknown>>(
+        `${API_ROOT}${prefix}/matches/${encodeURIComponent(item.matchId)}/odds`,
+        { params: { _: Date.now().toString() } },
+      )
       .pipe(
         timeout(8000),
         catchError(() => {

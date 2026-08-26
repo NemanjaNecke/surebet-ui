@@ -282,10 +282,6 @@ export class Dashboard {
     }
   }
 
-  refreshCurrent(): void {
-    this.api.refresh(this.scope());
-  }
-
   fixtureTeams(fixture: string): string[] {
     return fixture.split(' — ').map((team) => team.trim()).filter(Boolean);
   }

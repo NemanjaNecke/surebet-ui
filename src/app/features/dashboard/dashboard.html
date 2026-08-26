@@ -7,11 +7,11 @@
     <nav aria-label="Glavna navigacija">
       <button [class.active]="marketView() === 'odds'" (click)="selectView('odds')">Najbolje kvote</button>
       <button [class.active]="marketView() === 'surebets'" (click)="selectView('surebets')">
-        Surebetovi <span>{{ api.snapshot().opportunities.length }}</span>
+        Surebetovi <span>{{ opportunities().length }}</span>
       </button>
     </nav>
     <div class="header-actions">
-      <span class="data-state" [class.preview]="api.mode() !== 'live'">
+      <span class="data-state" [class.preview]="api.mode() !== 'live'" aria-live="polite">
         <i></i>{{ api.mode() === 'stale' ? 'Poslednji učitani podaci' : realtime.connected() ? 'Prenos uživo' : api.mode() === 'live' ? 'Aktuelni podaci' : api.mode() === 'loading' ? 'Povezivanje' : session.enabled ? 'Veza nije dostupna' : 'Demo prikaz' }}
       </span>
       @if (session.enabled) {
@@ -28,7 +28,7 @@
   </header>
 
   <main id="top">
-    <section class="hero">
+    <section class="hero" [class.authenticated]="session.authenticated()">
       <div class="hero-copy">
         <p class="eyebrow"><span></span> Srbija · Bosna i Hercegovina</p>
         <h1>Pronađi najbolju kvotu.<br /><em>Iskoristi prednost.</em></h1>
@@ -76,7 +76,7 @@
     } @else if (api.mode() === 'stale') {
       <section class="preview-banner" role="status">
         <div><strong>Privremeni zastoj</strong><span>{{ api.errorMessage() }}</span></div>
-        <div class="preview-actions"><button (click)="api.refresh('all')">Pokušaj ponovo</button></div>
+        <span class="auto-retry">Automatski ponovni pokušaj</span>
       </section>
     } @else if (api.mode() === 'loading') {
       <section class="preview-banner" role="status">
@@ -92,7 +92,7 @@
         <div><strong>{{ session.enabled ? 'Podaci trenutno nisu dostupni' : 'Demo podaci' }}</strong><span>{{ api.errorMessage() }}</span></div>
         <div class="preview-actions">
           @if (session.enabled && !session.authenticated()) { <button class="primary" (click)="session.login()">Prijavi se</button> }
-          <button (click)="api.refresh('all')">Pokušaj ponovo</button>
+          @if (session.authenticated()) { <span class="auto-retry">Automatski ponovni pokušaj</span> }
         </div>
       </section>
     }
@@ -108,19 +108,15 @@
               : 'Pozitivan povrat raspoređen između najmanje dve različite kladionice.' }}
           </p>
         </div>
-        <button class="refresh" [disabled]="currentLoading()" (click)="refreshCurrent()">
-          <svg viewBox="0 0 24 24" [class.spinning]="currentLoading()"><path d="M20 6v5h-5M4 18v-5h5M18.5 9A7 7 0 0 0 6.6 6.5L4 11m16 2-2.6 4.5A7 7 0 0 1 5.5 15" /></svg>
-          {{ currentLoading() ? 'Osvežavanje' : 'Osveži sada' }}
-        </button>
       </div>
 
       <div class="control-row">
         <div class="view-tabs" role="tablist" aria-label="Vrsta prikaza">
           <button role="tab" [attr.aria-selected]="marketView() === 'odds'" [class.active]="marketView() === 'odds'" (click)="selectView('odds')">
-            Najbolje kvote <span>{{ api.snapshot().bestOdds.length }}</span>
+            Najbolje kvote <span>{{ bestOdds().length }}</span>
           </button>
           <button role="tab" [attr.aria-selected]="marketView() === 'surebets'" [class.active]="marketView() === 'surebets'" (click)="selectView('surebets')">
-            Surebetovi <span>{{ api.snapshot().opportunities.length }}</span>
+            Surebetovi <span>{{ opportunities().length }}</span>
           </button>
         </div>
         <div class="scope-tabs" role="group" aria-label="Period ponude">
@@ -278,12 +274,16 @@
       }
     </section>
 
-    <section class="bookmaker-strip">
-      <div><p class="section-label">POVEZANE KLADIONICE</p><h2>Regionalna ponuda na jednom mestu.</h2></div>
-      <div class="bookmaker-cloud">
-        @for (bookmaker of api.snapshot().bookmakers; track bookmaker.name) { <span [class.delayed]="bookmaker.status !== 'online'"><i></i>{{ displayName(bookmaker.name) }}</span> }
-      </div>
-    </section>
+    @defer (on viewport) {
+      <section class="bookmaker-strip">
+        <div><p class="section-label">POVEZANE KLADIONICE</p><h2>Regionalna ponuda na jednom mestu.</h2></div>
+        <div class="bookmaker-cloud">
+          @for (bookmaker of api.snapshot().bookmakers; track bookmaker.name) { <span [class.delayed]="bookmaker.status !== 'online'"><i></i>{{ displayName(bookmaker.name) }}</span> }
+        </div>
+      </section>
+    } @placeholder {
+      <div class="bookmaker-strip-placeholder" aria-hidden="true"></div>
+    }
   </main>
 
   <footer class="site-footer">
@@ -315,7 +315,10 @@
       @else if (api.comparisonError()) { <div class="drawer-loading error"><strong>{{ api.comparisonError() }}</strong><button (click)="closeDrawer()">Zatvori</button></div> }
       @else if (api.comparison(); as comparison) {
         <p class="section-label">SVE KVOTE KLADIONICA</p><h2>{{ comparison.fixture }}</h2>
-        <p class="drawer-subtitle">{{ comparison.league }} · {{ comparison.kickoff | date: 'dd.MM. · HH:mm' }}</p>
+        <p class="drawer-subtitle">
+          {{ comparison.league }} · {{ comparison.kickoff | date: 'dd.MM. · HH:mm' }} ·
+          <strong>{{ comparison.markets.length }} tržišta</strong>
+        </p>
         <div class="comparison-markets">
           @for (marketItem of comparison.markets; track marketItem.id) {
             <section><h3>{{ marketName(marketItem.label) }} <small>{{ marketItem.period }}@if (marketItem.line !== null) { · {{ marketItem.line }}}</small></h3>
