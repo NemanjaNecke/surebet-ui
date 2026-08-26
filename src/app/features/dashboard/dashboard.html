@@ -62,7 +62,7 @@
 
       <div class="market-pulse">
         <div class="pulse-heading"><span>Pregled ponude</span><strong><i></i> Povezano</strong></div>
-        <div class="pulse-number">{{ bookmakerCount() || api.snapshot().bookmakers.length }}</div>
+        <div class="pulse-number">{{ connectedBookmakerCount() }}</div>
         <p>kladionica u poređenju</p>
         <div class="pulse-row"><span>{{ api.snapshot().prematchEvents | number }}</span><small>događaja pre meča</small></div>
         <div class="pulse-row"><span>{{ api.snapshot().liveEvents | number }}</span><small>događaja uživo</small></div>
@@ -131,15 +131,15 @@
       </div>
 
       <div class="filters" [class.open]="mobileFiltersOpen()">
-        <div>
+        <label class="select-wrap market-select">
           <span>Tržište</span>
-          <div class="filter-buttons">
+          <select #marketSelect (change)="setMarket(marketSelect.value)" aria-label="Izaberi tržište">
             @for (item of markets(); track item) {
-              <button [class.active]="market() === item" (click)="setMarket(item)">{{ marketName(item) }}</button>
+              <option [value]="item" [selected]="market() === item">{{ marketName(item) }}</option>
             }
-          </div>
-        </div>
-        <div>
+          </select>
+        </label>
+        <div class="filter-section sport-section">
           <span>Sport</span>
           <div class="filter-buttons sport-filter">
             @for (item of sports(); track item) {
@@ -148,7 +148,7 @@
           </div>
         </div>
         @if (marketView() === 'surebets') {
-          <div>
+          <div class="filter-section">
             <span>Tip surebeta</span>
             <div class="filter-buttons opportunity-kind-filter">
               <button [class.active]="opportunityKind() === 'all'" (click)="setOpportunityKind('all')">Svi</button>
@@ -157,7 +157,7 @@
             </div>
           </div>
         }
-        <div>
+        <div class="filter-section bookmaker-section">
           <span>Kladionica</span>
           <div class="filter-buttons bookmaker-filter">
             @for (item of bookmakers(); track item) {
@@ -166,7 +166,7 @@
           </div>
         </div>
         @if (scope() === 'prematch') {
-          <div>
+          <div class="filter-section time-section">
             <span>Vremenski period</span>
             <div class="filter-buttons time-filter">
               @for (item of timeWindows; track item.value) {

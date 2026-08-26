@@ -149,6 +149,10 @@ export class Dashboard {
   readonly bookmakerCount = computed(() => new Set(
     this.api.snapshot().bestOdds.flatMap((item) => item.selections.map((selection) => selection.bookmaker)),
   ).size);
+  readonly connectedBookmakerCount = computed(() =>
+    this.api.snapshot().bookmakers.filter((item) => item.status !== 'offline').length
+      || this.bookmakerCount(),
+  );
 
   readonly calculatorRows = computed(() => {
     const opportunity = this.selectedOpportunity();

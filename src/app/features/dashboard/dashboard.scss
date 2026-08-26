@@ -67,10 +67,14 @@ h1 em { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
 .view-tabs span { min-width: 18px; display: inline-grid; place-items: center; margin-left: 5px; padding: 2px 5px; color: #167352; background: #e7f7f0; border-radius: 10px; font-size: 8px; }
 .scope-tabs { margin-left: auto; }.scope-tabs i { width: 6px; height: 6px; display: inline-block; margin-right: 3px; background: #1ac48b; border-radius: 50%; }
 .filter-toggle { display: none; }
-.filters { min-height: 63px; display: flex; flex-wrap: wrap; align-items: center; gap: 18px 28px; padding: 13px 0; border-bottom: 1px solid #e8ece9; }
+.filters { min-height: 63px; display: flex; flex-wrap: wrap; align-items: end; gap: 13px 20px; padding: 13px 0; border-bottom: 1px solid #e8ece9; }
 .filters > div > span, .select-wrap > span { display: block; margin-bottom: 6px; color: #98a19e; font-size: 8px; font-weight: 750; letter-spacing: .8px; text-transform: uppercase; }
 .filter-buttons { display: flex; flex-wrap: wrap; gap: 5px; }.filter-buttons button { padding: 6px 10px; color: #6d7974; background: #f4f6f5; border: 1px solid #e6eae8; border-radius: 6px; font-size: 9px; }.filter-buttons button.active { color: #116d4d; background: #eaf8f2; border-color: #ccebdd; }
-.select-wrap select { min-width: 135px; height: 29px; padding: 0 26px 0 9px; color: #52605b; background: #f5f7f6; border: 1px solid #e3e8e5; border-radius: 6px; font-size: 9px; }
+.filter-section { min-width: 0; }.sport-section { max-width: 430px; }.bookmaker-section { min-width: 180px; max-width: 520px; flex: 1; }
+.sport-filter, .bookmaker-filter, .time-filter { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; scrollbar-width: thin; scrollbar-color: #cbd5d0 transparent; }
+.sport-filter button, .bookmaker-filter button, .time-filter button { flex: 0 0 auto; }
+.select-wrap select { min-width: 135px; height: 32px; padding: 0 30px 0 10px; color: #52605b; background: #f5f7f6; border: 1px solid #e3e8e5; border-radius: 6px; font-size: 9px; }
+.market-select select { width: clamp(220px, 24vw, 360px); font-size: 10px; }
 .result-summary { display: flex; align-items: baseline; gap: 5px; margin-left: auto; color: #98a19e; }.result-summary strong { color: #28362f; font-size: 17px; }.result-summary span { font-size: 9px; }
 
 .odds-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding-top: 18px; }
@@ -115,6 +119,11 @@ h1 em { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
 @media (max-width: 720px) {
   .topbar { height: 64px; padding-inline: 16px; }.topbar nav { display: none; }.data-state { display: none; }.hero { grid-template-columns: 1fr; padding: 46px 20px 50px; }.market-pulse { max-width: 390px; }.preview-banner { margin-inline: 16px; align-items: start; flex-direction: column; }.market-board { padding: 37px 16px 50px; }.board-heading { align-items: start; }.board-heading p:not(.section-label) { max-width: 270px; line-height: 1.5; }.control-row { flex-wrap: wrap; }.view-tabs { width: 100%; }.view-tabs button { flex: 1; }.scope-tabs { margin-left: 0; }.filter-toggle { display: block; height: 39px; margin-left: auto; padding: 0 13px; color: #52605b; background: #fff; border: 1px solid #dce2de; border-radius: 8px; font-size: 9px; font-weight: 700; }.filters { display: none; align-items: start; flex-direction: column; }.filters.open { display: flex; }.filter-buttons { flex-wrap: wrap; }.result-summary { margin-left: 0; }.surebet-card { grid-template-columns: 105px 1fr; }.surebet-legs { flex-wrap: wrap; }.surebet-action { align-items: end; padding: 12px; }.bookmaker-strip { padding: 44px 20px; }.site-footer { align-items: start; flex-direction: column; gap: 16px; }.site-footer p { text-align: left; }.drawer { padding: 43px 21px; }
   .pagination { grid-template-columns: 1fr; justify-items: center; }.pagination > small { justify-self: center; }.pagination > span { text-align: center; }
+}
+@media (max-width: 720px) {
+  .filters.open { align-items: stretch; }
+  .filter-section, .sport-section, .bookmaker-section { width: 100%; max-width: none; }
+  .market-select select, .sport-filter, .bookmaker-filter, .time-filter { width: 100%; }
 }
 @media (max-width: 480px) {
   h1 { font-size: 43px; letter-spacing: -2.8px; }.hero-text { font-size: 14px; }.market-pulse { margin-right: 10px; }.board-heading h2 { font-size: 29px; }.board-heading .refresh { width: 36px; overflow: hidden; padding: 0 10px; color: transparent; }.board-heading .refresh svg { flex: 0 0 auto; color: #33413c; }.scope-tabs { width: calc(100% - 70px); }.scope-tabs button { flex: 1; padding-inline: 7px; }.price-grid { grid-template-columns: 1fr; }.price-grid.two-way { grid-template-columns: 1fr 1fr; }.best-price { grid-template-columns: auto 1fr auto; }.best-price small { grid-column: 2; grid-row: 1; }.surebet-card { grid-template-columns: 1fr; }.roi-block { border-right: 0; border-bottom: 1px solid #d8ede4; }.surebet-action { grid-area: auto; align-items: center; flex-direction: row; justify-content: space-between; border-top: 1px solid #edf0ee; border-left: 0; }.surebet-legs { grid-column: auto; }.return-card { grid-template-columns: 1fr; }

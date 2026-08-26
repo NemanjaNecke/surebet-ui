@@ -53,6 +53,11 @@ describe('Dashboard', () => {
     expect(fixture.nativeElement.querySelector('.event-card time')?.textContent).toContain('1:0');
   });
 
+  it('shows the connected bookmaker health total instead of the current page subset', () => {
+    const expected = String(snapshot().bookmakers.filter((item) => item.status !== 'offline').length);
+    expect(fixture.nativeElement.querySelector('.pulse-number')?.textContent?.trim()).toBe(expected);
+  });
+
   it('never renders a false logged-out action while the session is restoring', () => {
     session.enabled = true;
     session.loading.set(true);
@@ -134,6 +139,18 @@ describe('Dashboard', () => {
     expect(cards[0].textContent).toContain('2.06');
     fixture.componentInstance.openComparison(PREVIEW_SNAPSHOT.bestOdds[0]);
     expect(api.openComparison).toHaveBeenCalled();
+  });
+
+  it('keeps the full market catalog in one compact selector', () => {
+    const select = fixture.nativeElement.querySelector('.market-select select') as HTMLSelectElement;
+    expect([...select.options].map((option) => option.value)).toContain('O/U');
+
+    select.value = 'O/U';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.market()).toBe('O/U');
+    expect(fixture.nativeElement.querySelectorAll('.event-card')).toHaveLength(1);
   });
 
   it('keeps live and prematch filters isolated and paginates results', () => {
