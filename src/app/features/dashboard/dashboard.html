@@ -18,6 +18,7 @@
         @if (session.loading()) {
           <button class="sign-in checking" disabled><i></i> Provera naloga</button>
         } @else if (session.authenticated()) {
+          @if (account.profile()?.entitlement?.admin) { <a class="admin-link" routerLink="/admin">Admin</a> }
           <button class="sign-in" (click)="session.logout()">Odjava</button>
         } @else {
           <a class="register-link" routerLink="/registracija">Registracija</a>
@@ -130,46 +131,47 @@
         <label class="select-wrap market-select">
           <span>Tržište</span>
           <select #marketSelect (change)="setMarket(marketSelect.value)" aria-label="Izaberi tržište">
-            @for (item of markets(); track item) {
-              <option [value]="item" [selected]="market() === item">{{ marketName(item) }}</option>
+            @for (item of markets(); track item.key) {
+              <option [value]="item.key" [selected]="market() === item.key">{{ item.label }}</option>
             }
           </select>
         </label>
-        <div class="filter-section sport-section">
+        <label class="select-wrap sport-section">
           <span>Sport</span>
-          <div class="filter-buttons sport-filter">
+          <select #sportSelect (change)="setSport(sportSelect.value)" aria-label="Izaberi sport">
             @for (item of sports(); track item) {
-              <button [class.active]="sport() === item" (click)="setSport(item)">{{ item === 'All' ? 'Svi sportovi' : item }}</button>
+              <option [value]="item" [selected]="sport() === item">{{ item === 'all' ? 'Svi sportovi' : sportName(item) }}</option>
             }
-          </div>
-        </div>
+          </select>
+        </label>
         @if (marketView() === 'surebets') {
-          <div class="filter-section">
+          <label class="select-wrap">
             <span>Tip surebeta</span>
-            <div class="filter-buttons opportunity-kind-filter">
-              <button [class.active]="opportunityKind() === 'all'" (click)="setOpportunityKind('all')">Svi</button>
-              <button [class.active]="opportunityKind() === 'same-market'" (click)="setOpportunityKind('same-market')">Ista država</button>
-              <button class="cross-market-filter" [class.active]="opportunityKind() === 'cross-market'" (click)="setOpportunityKind('cross-market')">Cross-market · RS + BiH</button>
-            </div>
-          </div>
+            <select #kindSelect (change)="setOpportunityKind($any(kindSelect.value))">
+              <option value="all" [selected]="opportunityKind() === 'all'">Svi tipovi</option>
+              <option value="same-market" [selected]="opportunityKind() === 'same-market'">Ista država</option>
+              <option value="cross-market" [selected]="opportunityKind() === 'cross-market'">Cross-market · RS + BiH</option>
+            </select>
+          </label>
         }
-        <div class="filter-section bookmaker-section">
+        <label class="select-wrap bookmaker-section">
           <span>Kladionica</span>
-          <div class="filter-buttons bookmaker-filter">
-            @for (item of bookmakers(); track item) {
-              <button [class.active]="bookmaker() === item" (click)="setBookmaker(item)">{{ displayName(item) }}</button>
+          <select #bookmakerSelect (change)="setBookmaker(bookmakerSelect.value)" aria-label="Izaberi kladionicu">
+            <option value="" [selected]="!bookmaker()">Sve dostupne kladionice ({{ bookmakers().length }})</option>
+            @for (item of bookmakers(); track item.key) {
+              <option [value]="item.key" [selected]="bookmaker() === item.key">{{ item.name }} · {{ item.country }}</option>
             }
-          </div>
-        </div>
+          </select>
+        </label>
         @if (scope() === 'prematch') {
-          <div class="filter-section time-section">
+          <label class="select-wrap time-section">
             <span>Vremenski period</span>
-            <div class="filter-buttons time-filter">
+            <select #timeSelect (change)="setTimeWindow($any(timeSelect.value))">
               @for (item of timeWindows; track item.value) {
-                <button [class.active]="timeWindow() === item.value" (click)="setTimeWindow(item.value)">{{ item.label }}</button>
+                <option [value]="item.value" [selected]="timeWindow() === item.value">{{ item.label }}</option>
               }
-            </div>
-          </div>
+            </select>
+          </label>
         }
         <label class="select-wrap"><span>Po stranici</span>
           <select #sizeSelect (change)="setPageSize(sizeSelect.value)">

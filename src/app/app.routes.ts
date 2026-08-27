@@ -1,6 +1,14 @@
 import { Routes } from '@angular/router';
+import { adminGuard } from './core/account';
 
 export const routes: Routes = [
+  {
+    path: 'admin',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/admin/admin').then((module) => module.Admin),
+    title: 'Administracija · SureEdge',
+  },
   {
     path: '',
     loadComponent: () =>

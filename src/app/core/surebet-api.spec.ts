@@ -56,6 +56,7 @@ describe('SurebetApi', () => {
       ],
     });
     http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({ latest_snapshot: { Alpha: now }, recent_normalized_counts: { Alpha: 18 } });
+    http.expectOne((request) => request.url.endsWith('/bookmakers')).flush({ items: [] });
 
     expect(api.mode()).toBe('live');
     expect(api.snapshot().bestOdds).toHaveLength(2);
@@ -75,6 +76,7 @@ describe('SurebetApi', () => {
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
+    http.expectOne((request) => request.url.endsWith('/bookmakers')).flush({ items: [] });
     http.expectNone((request) => request.url.includes('/odds/prematch/') || request.url.includes('/surebets/prematch/'));
     expect(api.snapshot().bestOdds.filter((item) => item.scope === 'prematch')).toHaveLength(1);
     expect(api.snapshot().opportunities.filter((item) => item.scope === 'prematch')).toHaveLength(2);
@@ -104,6 +106,7 @@ describe('SurebetApi', () => {
       items: [], pagination: { limit: 50, offset: 0, count: 0, total: 0 },
     });
     http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
+    http.expectOne((request) => request.url.endsWith('/bookmakers')).flush({ items: [] });
     expect(api.mode()).toBe('live');
     const lastSuccessfulSnapshot = api.snapshot();
 
@@ -111,6 +114,7 @@ describe('SurebetApi', () => {
       api.refresh('live');
       http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
       http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
+      http.expectOne((request) => request.url.endsWith('/bookmakers')).flush({ items: [] });
       http.expectOne((request) => request.url.endsWith('/odds/live/best')).error(
         new ProgressEvent('network error'),
       );

@@ -8,6 +8,7 @@ import { Session } from '../../core/session';
 import { SurebetApi } from '../../core/surebet-api';
 import { TeamLogos } from '../../core/team-logos';
 import { Dashboard } from './dashboard';
+import { Account } from '../../core/account';
 
 describe('Dashboard', () => {
   let fixture: ComponentFixture<Dashboard>;
@@ -20,14 +21,16 @@ describe('Dashboard', () => {
     lastPrematchUpdated: signal(new Date('2026-08-15T11:00:00Z')),
     errorMessage: signal('Demo podaci'),
     comparison: signal(null), comparisonLoading: signal(false), comparisonError: signal(''),
+    bookmakerCatalog: signal([]), prematchTotal: signal(1),
     healthyBookmakers: computed(() => snapshot().bookmakers.filter((item) => item.status === 'online').length),
-    refresh: vi.fn(), openComparison: vi.fn(), closeComparison: vi.fn(),
+    refresh: vi.fn(), setPrematchQuery: vi.fn(), openComparison: vi.fn(), closeComparison: vi.fn(),
   };
   const sessionEnabled = signal(false);
   const session = {
     get enabled() { return sessionEnabled(); },
     authenticated: signal(false), loading: signal(false), user: signal(null), login: vi.fn(), logout: vi.fn(),
   };
+  const account = { profile: signal(null) };
 
   beforeEach(async () => {
     snapshot.set(PREVIEW_SNAPSHOT);
@@ -41,6 +44,7 @@ describe('Dashboard', () => {
       providers: [
         { provide: SurebetApi, useValue: api },
         { provide: Session, useValue: session },
+        { provide: Account, useValue: account },
         { provide: RealtimeUpdates, useValue: { connected: signal(false) } },
         { provide: TeamLogos, useValue: { url: vi.fn(() => null) } },
       ],
@@ -163,7 +167,7 @@ describe('Dashboard', () => {
   });
 
   it('filters the best odds board and opens comparisons', () => {
-    fixture.componentInstance.market.set('O/U');
+    fixture.componentInstance.market.set('FT.OU');
     fixture.detectChanges();
     const cards = fixture.nativeElement.querySelectorAll('.event-card');
     expect(cards).toHaveLength(1);
@@ -174,14 +178,23 @@ describe('Dashboard', () => {
 
   it('keeps the full market catalog in one compact selector', () => {
     const select = fixture.nativeElement.querySelector('.market-select select') as HTMLSelectElement;
-    expect([...select.options].map((option) => option.value)).toContain('O/U');
+    expect([...select.options].map((option) => option.value)).toContain('FT.OU');
 
-    select.value = 'O/U';
+    select.value = 'FT.OU';
     select.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.market()).toBe('O/U');
+    expect(fixture.componentInstance.market()).toBe('FT.OU');
     expect(fixture.nativeElement.querySelectorAll('.event-card')).toHaveLength(1);
+  });
+
+  it('renders every dashboard filter as a compact dropdown', () => {
+    fixture.componentInstance.setScope('prematch');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.sport-section select')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.bookmaker-section select')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.time-section select')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.filters .filter-buttons')).toBeNull();
   });
 
   it('keeps live and prematch filters isolated and paginates results', () => {

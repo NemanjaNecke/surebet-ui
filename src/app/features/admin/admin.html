@@ -1,0 +1,42 @@
+<main class="admin-shell">
+  <header>
+    <div><p>SureEdge administracija</p><h1>Korisnici i pristup kladionicama</h1></div>
+    <a routerLink="/">Nazad na kvote</a>
+  </header>
+
+  @if (message()) { <div class="message" role="status">{{ message() }}</div> }
+  @if (loading()) {
+    <div class="loading">Učitavanje korisnika…</div>
+  } @else {
+    <section class="users">
+      @for (user of users(); track user.subject) {
+        <article>
+          <div class="user-heading">
+            <div><strong>{{ user.display_name || user.email || 'Korisnik' }}</strong><small>{{ user.email || user.subject }}</small></div>
+            <span>Poslednja prijava {{ user.last_seen_at | date: 'dd.MM.yyyy. HH:mm' }}</span>
+          </div>
+          <div class="flags">
+            <label><input type="checkbox" [checked]="user.is_enabled" (change)="setFlag(user, 'is_enabled', $any($event.target).checked)" /> Aktivan nalog</label>
+            <label><input type="checkbox" [checked]="user.is_admin" (change)="setFlag(user, 'is_admin', $any($event.target).checked)" /> Administrator</label>
+            <label><input type="checkbox" [checked]="user.all_bookmakers" (change)="setFlag(user, 'all_bookmakers', $any($event.target).checked)" /> Sve kladionice</label>
+          </div>
+          @if (!user.all_bookmakers) {
+            <div class="bookmaker-grid">
+              @for (bookmaker of bookmakers(); track bookmaker.key) {
+                <label>
+                  <input type="checkbox" [checked]="user.bookmakers.includes(bookmaker.key)" (change)="setBookmaker(user, bookmaker.key, $any($event.target).checked)" />
+                  <span>{{ bookmaker.name }}</span><small>{{ bookmaker.country }}</small>
+                </label>
+              }
+            </div>
+          }
+          <button class="save" [disabled]="saving() === user.subject" (click)="save(user)">
+            {{ saving() === user.subject ? 'Čuvanje…' : 'Sačuvaj pristup' }}
+          </button>
+        </article>
+      } @empty {
+        <div class="loading">Nema registrovanih korisnika.</div>
+      }
+    </section>
+  }
+</main>

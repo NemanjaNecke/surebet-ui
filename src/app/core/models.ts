@@ -94,6 +94,41 @@ export interface BookmakerHealth {
   lastUpdate: string;
 }
 
+export interface BookmakerOption {
+  key: string;
+  name: string;
+  country: 'RS' | 'BA' | '';
+  permitted: boolean;
+}
+
+export interface AccountProfile {
+  subject: string;
+  email: string | null;
+  display_name: string | null;
+  entitlement: {
+    active: boolean;
+    admin: boolean;
+    enabled: boolean;
+    status: string | null;
+    plan_code: string | null;
+    current_period_end: string | null;
+  };
+  all_bookmakers: boolean;
+  bookmakers: string[];
+}
+
+export interface AdminUser {
+  subject: string;
+  email: string | null;
+  display_name: string | null;
+  is_admin: boolean;
+  is_enabled: boolean;
+  all_bookmakers: boolean;
+  bookmakers: string[];
+  created_at: string;
+  last_seen_at: string;
+}
+
 export interface TrendPoint {
   label: string;
   value: number;

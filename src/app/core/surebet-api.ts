@@ -6,6 +6,7 @@ import {
   BestOddsMarket,
   BestOddsSelection,
   BookmakerHealth,
+  BookmakerOption,
   CollectionResponse,
   DashboardSnapshot,
   DataMode,
@@ -87,6 +88,8 @@ export class SurebetApi {
   private liveInFlight = false;
   private liveAuxInFlight = false;
   private prematchInFlight = false;
+  private prematchRefreshQueued = false;
+  private prematchQuery = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
 
   readonly snapshot = this.snapshotState.asReadonly();
   readonly mode = signal<DataMode>(authEnabled ? (this.restored ? 'stale' : 'loading') : 'preview');
@@ -103,6 +106,8 @@ export class SurebetApi {
   readonly comparison = signal<MatchComparison | null>(null);
   readonly comparisonLoading = signal(false);
   readonly comparisonError = signal('');
+  readonly bookmakerCatalog = signal<BookmakerOption[]>([]);
+  readonly prematchTotal = signal(this.prematchCurrentTotal);
   readonly healthyBookmakers = computed(
     () => this.snapshot().bookmakers.filter((item) => item.status === 'online').length,
   );
@@ -152,6 +157,27 @@ export class SurebetApi {
     this.refreshPrematch(foreground);
   }
 
+  setPrematchQuery(query: {
+    limit: number; offset: number; market?: string; sport?: string;
+    bookie?: string; search?: string; kickoffFrom?: string; kickoffTo?: string;
+  }): void {
+    let params = new HttpParams()
+      .set('limit', query.limit)
+      .set('offset', query.offset);
+    if (query.market && query.market !== 'all') params = params.set('market', query.market);
+    if (query.sport) params = params.set('sport', query.sport);
+    if (query.bookie) params = params.set('bookie', query.bookie);
+    if (query.search) params = params.set('search', query.search);
+    if (query.kickoffFrom) params = params.set('kickoff_from', query.kickoffFrom);
+    if (query.kickoffTo) params = params.set('kickoff_to', query.kickoffTo);
+    this.prematchQuery = params;
+    if (this.prematchInFlight) {
+      this.prematchRefreshQueued = true;
+      return;
+    }
+    this.refreshPrematch(false);
+  }
+
   private loadAll(): void {
     if (this.loading() || this.prematchLoading()) return;
     this.loading.set(true);
@@ -179,6 +205,9 @@ export class SurebetApi {
       health: this.http
         .get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`)
         .pipe(timeout(8000)),
+      catalog: this.http
+        .get<{ items: BookmakerOption[] }>(`${API_ROOT}/bookmakers`)
+        .pipe(timeout(8000)),
     })
       .pipe(
         map((payload) => {
@@ -202,6 +231,7 @@ export class SurebetApi {
             this.toOpportunity(row, index, 'prematch'),
           );
           this.bookmakers = this.toBookmakers(payload.health);
+          this.bookmakerCatalog.set(payload.catalog.items);
           return this.combinedSnapshot();
         }),
         catchError((error: HttpErrorResponse) => {
@@ -268,14 +298,18 @@ export class SurebetApi {
       health: this.http.get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`).pipe(
         timeout(20_000), catchError(() => of(null)),
       ),
-    }).subscribe(({ surebets, health }) => {
+      catalog: this.http.get<{ items: BookmakerOption[] }>(`${API_ROOT}/bookmakers`).pipe(
+        timeout(20_000), catchError(() => of(null)),
+      ),
+    }).subscribe(({ surebets, health, catalog }) => {
       if (surebets) {
         this.liveOpportunities = surebets.items.map((row, index) =>
           this.toOpportunity(row, index, 'live'),
         );
       }
       if (health) this.bookmakers = this.toBookmakers(health);
-      if (surebets || health) this.publishSnapshot(this.combinedSnapshot());
+      if (catalog) this.bookmakerCatalog.set(catalog.items);
+      if (surebets || health || catalog) this.publishSnapshot(this.combinedSnapshot());
       this.liveAuxInFlight = false;
     });
   }
@@ -284,7 +318,7 @@ export class SurebetApi {
     if (this.prematchInFlight) return;
     this.prematchInFlight = true;
     if (foreground) this.prematchLoading.set(true);
-    const limited = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
+    const limited = this.prematchQuery;
     this.refreshPrematchSurebets(limited);
     this.http.get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: limited }).pipe(
       timeout(15_000),
@@ -293,6 +327,7 @@ export class SurebetApi {
           this.toBestOddsMarkets(row, index, 'prematch'),
         );
         this.prematchCurrentTotal = payload.total ?? payload.count;
+        this.prematchTotal.set(this.prematchCurrentTotal);
         this.prematchEventTotal = this.prematchCurrentTotal + this.prematchHistoryTotal;
         return this.combinedSnapshot();
       }),
@@ -315,7 +350,13 @@ export class SurebetApi {
       // Current prices are the interactive path. Load historical fixtures only
       // after they have rendered so the two large prematch queries do not
       // compete for the same database resources and blank the dashboard.
-      this.refreshPrematchHistory(limited);
+      if (!limited.has('kickoff_from') && !limited.has('kickoff_to') && !limited.has('offset')) {
+        this.refreshPrematchHistory(limited);
+      }
+      if (this.prematchRefreshQueued) {
+        this.prematchRefreshQueued = false;
+        this.refreshPrematch(false);
+      }
     });
   }
 
@@ -429,9 +470,11 @@ export class SurebetApi {
     this.liveOpportunities = [];
     this.prematchOpportunities = [];
     this.bookmakers = [];
+    this.bookmakerCatalog.set([]);
     this.liveEventTotal = 0;
     this.prematchEventTotal = 0;
     this.prematchCurrentTotal = 0;
+    this.prematchTotal.set(0);
     this.prematchHistoryTotal = 0;
     this.hasSuccessfulSnapshot = false;
     this.snapshotState.set(EMPTY_SNAPSHOT);
