@@ -1,7 +1,8 @@
 import { Injectable, signal } from '@angular/core';
 
 const IBET365_ICON_ROOT = 'https://ibet-365.com/content/club-icons';
-const IBET365_ICON_INDEX = `${IBET365_ICON_ROOT}/vanja.json`;
+const CAPTURED_ICON_INDEX = '/team-logo-index.json';
+const LIVE_ICON_INDEX = `${IBET365_ICON_ROOT}/vanja.json`;
 
 const VERIFIED_IBET365_CLUB_SLUGS = new Set([
   'acviseu', 'ajax', 'alaves', 'altach', 'alustenau', 'alverca', 'anderlecht', 'antwerp', 'arouca',
@@ -67,44 +68,91 @@ function iconUrl(slug: string): string {
   return `${IBET365_ICON_ROOT}/${slug}.webp`;
 }
 
+function verifiedIconUrl(value: unknown): string | null {
+  try {
+    const url = new URL(String(value ?? ''));
+    if (url.protocol !== 'https:' || url.hostname !== 'ibet-365.com') return null;
+    if (!url.pathname.startsWith('/content/club-icons/')) return null;
+    return /\.(?:webp|png|jpe?g)$/i.test(url.pathname) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function logoKey(value: unknown): string {
+  return compactTeam(String(value ?? '').replace(/\.(?:webp|png|jpe?g)$/i, ''), false);
+}
+
+export function capturedTeamLogoMap(payload: unknown): Map<string, string> {
+  const logos = new Map<string, string>();
+  const add = (rawKey: unknown, rawUrl: unknown): void => {
+    const url = verifiedIconUrl(rawUrl);
+    if (!url) return;
+    const filename = new URL(url).pathname.split('/').at(-1);
+    for (const key of [logoKey(rawKey), logoKey(filename)]) {
+      if (key && !logos.has(key)) logos.set(key, url);
+    }
+  };
+
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      if (entry && typeof entry === 'object') {
+        const item = entry as { name?: unknown; url?: unknown };
+        add(item.name, item.url);
+      }
+    }
+    return logos;
+  }
+
+  if (!payload || typeof payload !== 'object') return logos;
+  const entries = (payload as { logos?: unknown }).logos;
+  if (!entries || typeof entries !== 'object' || Array.isArray(entries)) return logos;
+  for (const [key, url] of Object.entries(entries)) add(key, url);
+  return logos;
+}
+
+const IMMEDIATE_TEAM_LOGOS = new Map(
+  [...VERIFIED_IBET365_CLUB_SLUGS].map((slug) => [slug, iconUrl(slug)]),
+);
+
 export function verifiedTeamLogoUrl(team: string): string | null {
-  const slug = teamSlugCandidates(team).find((candidate) => VERIFIED_IBET365_CLUB_SLUGS.has(candidate));
-  return slug ? iconUrl(slug) : null;
+  const key = teamSlugCandidates(team).find((candidate) => IMMEDIATE_TEAM_LOGOS.has(candidate));
+  return key ? IMMEDIATE_TEAM_LOGOS.get(key) ?? null : null;
 }
 
 @Injectable({ providedIn: 'root' })
 export class TeamLogos {
-  private readonly knownSlugs = new Set(VERIFIED_IBET365_CLUB_SLUGS);
+  private readonly logos = new Map(IMMEDIATE_TEAM_LOGOS);
   private readonly revision = signal(0);
   private indexRequested = false;
 
   url(team: string): string | null {
     this.revision();
-    const slug = teamSlugCandidates(team).find((candidate) => this.knownSlugs.has(candidate));
-    if (!slug) this.loadCapturedIndex();
-    return slug ? iconUrl(slug) : null;
+    const key = teamSlugCandidates(team).find((candidate) => this.logos.has(candidate));
+    if (!this.indexRequested) this.loadCapturedIndex();
+    return key ? this.logos.get(key) ?? null : null;
   }
 
   private loadCapturedIndex(): void {
     if (this.indexRequested) return;
     this.indexRequested = true;
     window.setTimeout(() => {
-      void fetch(IBET365_ICON_INDEX, { cache: 'force-cache', mode: 'cors' })
-        .then((response) => response.ok ? response.json() : [])
-        .then((payload: unknown) => {
-          if (!Array.isArray(payload)) return;
-          let added = 0;
-          for (const entry of payload) {
-            if (!entry || typeof entry !== 'object') continue;
-            const slug = String((entry as { name?: unknown }).name ?? '').toLocaleLowerCase();
-            if (!/^[a-z0-9.-]{1,80}$/.test(slug) || slug.includes('.')) continue;
-            const sizeBefore = this.knownSlugs.size;
-            this.knownSlugs.add(slug);
-            if (this.knownSlugs.size !== sizeBefore) added += 1;
-          }
-          if (added) this.revision.update((value) => value + 1);
-        })
+      void this.fetchIndex(CAPTURED_ICON_INDEX)
+        .catch(() => this.fetchIndex(LIVE_ICON_INDEX, 'cors'))
         .catch(() => undefined);
     }, 0);
+  }
+
+  private async fetchIndex(url: string, mode: RequestMode = 'same-origin'): Promise<void> {
+    const response = await fetch(url, { cache: 'force-cache', mode });
+    if (!response.ok) throw new Error(`Team logo index returned ${response.status}`);
+    const captured = capturedTeamLogoMap(await response.json());
+    let added = 0;
+    for (const [key, imageUrl] of captured) {
+      if (this.logos.has(key)) continue;
+      this.logos.set(key, imageUrl);
+      added += 1;
+    }
+    if (added) this.revision.update((value) => value + 1);
   }
 }

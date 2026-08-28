@@ -6,6 +6,7 @@
     "start": "ng serve --proxy-config proxy.conf.json --host 127.0.0.1 --port 4200",
     "start:open": "ng serve --proxy-config proxy.conf.json --host 127.0.0.1 --port 4200 --open",
     "build": "ng build",
+    "extract:team-logos": "node tools/extract-team-logo-index.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:ci": "ng test --watch=false",

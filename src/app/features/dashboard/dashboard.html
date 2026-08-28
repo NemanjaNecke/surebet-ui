@@ -236,7 +236,19 @@
                   <span class="opportunity-type" [class.cross-market]="item.kind === 'cross-market'">{{ item.kind === 'cross-market' ? 'CROSS-MARKET · RS + BiH' : 'ISTA DRŽAVA' }}</span>
                   @if (item.pair) { <span class="opportunity-pair">{{ item.pair }}</span> }
                 </div>
-                <h3>{{ item.fixture }}</h3>
+                <div class="fixture-teams surebet-fixture-teams">
+                  @for (team of fixtureTeams(item.fixture); track team) {
+                    <div class="fixture-team">
+                      <span class="team-emblem" aria-hidden="true">
+                        <span>{{ teamInitials(team) }}</span>
+                        @if (teamLogoUrl(team); as logo) {
+                          <img [src]="logo" [alt]="team + ' grb'" loading="lazy" decoding="async" referrerpolicy="no-referrer" (error)="hideBrokenImage($event)" />
+                        }
+                      </span>
+                      <h3>{{ team }}</h3>
+                    </div>
+                  }
+                </div>
                 <span>
                   {{ marketName(item.market) }} ·
                   @if (item.liveState; as state) {
@@ -298,7 +310,20 @@
     <button class="drawer-backdrop" aria-label="Zatvori kalkulator" (click)="closeDrawer()"></button>
     <aside class="drawer" role="dialog" aria-modal="true" aria-label="Kalkulator surebeta">
       <button class="drawer-close" aria-label="Zatvori" (click)="closeDrawer()">×</button>
-      <p class="section-label">KALKULATOR SUREBETA</p><h2>{{ selectedOpportunity()!.fixture }}</h2>
+      <p class="section-label">KALKULATOR SUREBETA</p>
+      <div class="fixture-teams drawer-fixture">
+        @for (team of fixtureTeams(selectedOpportunity()!.fixture); track team) {
+          <div class="fixture-team">
+            <span class="team-emblem" aria-hidden="true">
+              <span>{{ teamInitials(team) }}</span>
+              @if (teamLogoUrl(team); as logo) {
+                <img [src]="logo" [alt]="team + ' grb'" loading="lazy" decoding="async" referrerpolicy="no-referrer" (error)="hideBrokenImage($event)" />
+              }
+            </span>
+            <h3>{{ team }}</h3>
+          </div>
+        }
+      </div>
       <p class="drawer-subtitle">{{ selectedOpportunity()!.league }} · {{ marketName(selectedOpportunity()!.market) }}</p>
       <label class="stake-input"><span>Ukupan ulog</span><div><b>€</b><input #stakeInput type="number" min="1" step="10" [value]="stake()" (input)="setStake(stakeInput.value)" /></div></label>
       <div class="stake-rows">
@@ -316,7 +341,20 @@
       @if (api.comparisonLoading()) { <div class="drawer-loading"><i></i><strong>Učitavamo sve kvote…</strong></div> }
       @else if (api.comparisonError()) { <div class="drawer-loading error"><strong>{{ api.comparisonError() }}</strong><button (click)="closeDrawer()">Zatvori</button></div> }
       @else if (api.comparison(); as comparison) {
-        <p class="section-label">SVE KVOTE KLADIONICA</p><h2>{{ comparison.fixture }}</h2>
+        <p class="section-label">SVE KVOTE KLADIONICA</p>
+        <div class="fixture-teams drawer-fixture">
+          @for (team of fixtureTeams(comparison.fixture); track team) {
+            <div class="fixture-team">
+              <span class="team-emblem" aria-hidden="true">
+                <span>{{ teamInitials(team) }}</span>
+                @if (teamLogoUrl(team); as logo) {
+                  <img [src]="logo" [alt]="team + ' grb'" loading="lazy" decoding="async" referrerpolicy="no-referrer" (error)="hideBrokenImage($event)" />
+                }
+              </span>
+              <h3>{{ team }}</h3>
+            </div>
+          }
+        </div>
         <p class="drawer-subtitle">
           {{ comparison.league }} · {{ comparison.kickoff | date: 'dd.MM. · HH:mm' }} ·
           <strong>{{ comparison.markets.length }} tržišta</strong>

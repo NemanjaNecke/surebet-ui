@@ -128,6 +128,7 @@ describe('Dashboard', () => {
     expect(cards[0].classList).toContain('cross-market');
     expect(cards[0].textContent).toContain('CROSS-MARKET');
     expect(cards[0].textContent).toContain('1X vs 2');
+    expect(cards[0].querySelectorAll('.team-emblem')).toHaveLength(2);
   });
 
   it('shows the filtered result count in every surebet badge', () => {
