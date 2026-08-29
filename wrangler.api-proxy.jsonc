@@ -4,6 +4,13 @@
   "main": "worker/api-proxy.js",
   "compatibility_date": "2026-08-29",
   "workers_dev": true,
+  "vpc_services": [
+    {
+      "binding": "VPC_API",
+      "service_id": "01a04cd8-2797-7411-9419-d71cd6b721c2",
+      "remote": true
+    }
+  ],
   "observability": {
     "enabled": true
   }

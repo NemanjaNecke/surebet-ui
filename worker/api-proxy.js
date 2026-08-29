@@ -12,8 +12,8 @@ function message(body, status) {
 
 export default {
   async fetch(request, env) {
-    if (!env.API_ORIGIN) {
-      return message('API origin is not configured', 503);
+    if (!env.VPC_API) {
+      return message('Private API binding is not configured', 503);
     }
 
     const incoming = new URL(request.url);
@@ -21,17 +21,7 @@ export default {
       return message('Not found', 404);
     }
 
-    let origin;
-    try {
-      origin = new URL(env.API_ORIGIN);
-    } catch {
-      return message('API origin is invalid', 500);
-    }
-    if (origin.protocol !== 'https:') {
-      return message('API origin must use HTTPS', 500);
-    }
-
-    const target = new URL(`${incoming.pathname}${incoming.search}`, origin);
-    return fetch(new Request(target.toString(), request));
+    const target = new URL(`${incoming.pathname}${incoming.search}`, 'http://127.0.0.1');
+    return env.VPC_API.fetch(new Request(target.toString(), request));
   },
 };
