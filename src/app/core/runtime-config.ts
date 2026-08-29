@@ -4,6 +4,7 @@ export interface SureEdgeRuntimeConfig {
     domain: string;
     clientId: string;
     audience: string;
+    connection: string;
   };
 }
 
@@ -23,6 +24,7 @@ export const runtimeConfig: SureEdgeRuntimeConfig = {
     domain: supplied?.auth?.domain?.trim() || '',
     clientId: supplied?.auth?.clientId?.trim() || '',
     audience: supplied?.auth?.audience?.trim() || '',
+    connection: supplied?.auth?.connection?.trim() || '',
   },
 };
 

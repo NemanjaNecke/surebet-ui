@@ -4,7 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
 
-import { authEnabled } from './runtime-config';
+import { authEnabled, runtimeConfig } from './runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class Session {
@@ -36,9 +36,14 @@ export class Session {
       || window.location.pathname.startsWith('/registracija')
       ? '/'
       : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const connection = runtimeConfig.auth.connection
+      ? { connection: runtimeConfig.auth.connection }
+      : {};
     this.auth?.loginWithRedirect({
       appState: { target },
-      authorizationParams: mode === 'signup' ? { screen_hint: 'signup' } : {},
+      authorizationParams: mode === 'signup'
+        ? { ...connection, screen_hint: 'signup' }
+        : connection,
     });
   }
 

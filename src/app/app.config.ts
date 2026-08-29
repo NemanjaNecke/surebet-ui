@@ -28,6 +28,7 @@ export function createAppConfig(): ApplicationConfig {
         authorizationParams: {
           redirect_uri: window.location.origin,
           audience: runtimeConfig.auth.audience,
+          ...(runtimeConfig.auth.connection ? { connection: runtimeConfig.auth.connection } : {}),
         },
         httpInterceptor: {
           allowedList: [

@@ -4,5 +4,6 @@ window.__SUREEDGE_CONFIG__ = {
     domain: 'dev-sj137jrezlkzv1dx.us.auth0.com',
     clientId: '1r92ZDTc5JOy3ClgLOmmWVcXorMex5z3',
     audience: 'https://surebet-api',
+    connection: 'Username-Password-Authentication',
   },
 };
