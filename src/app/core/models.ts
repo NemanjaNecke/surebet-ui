@@ -98,7 +98,7 @@ export interface BookmakerOption {
   key: string;
   name: string;
   country: 'RS' | 'BA' | '';
-  permitted: boolean;
+  permitted?: boolean;
 }
 
 export interface AccountProfile {

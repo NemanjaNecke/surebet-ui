@@ -1,42 +1,126 @@
 <main class="admin-shell">
-  <header>
-    <div><p>SureEdge administracija</p><h1>Korisnici i pristup kladionicama</h1></div>
-    <a routerLink="/">Nazad na kvote</a>
+  <header class="topbar">
+    <a class="brand" routerLink="/"><span>SE</span><strong>SureEdge</strong></a>
+    <div class="owner"><i></i><span>Vlasnički admin pristup</span></div>
+    <a class="back" routerLink="/">Nazad na kvote</a>
   </header>
 
-  @if (message()) { <div class="message" role="status">{{ message() }}</div> }
-  @if (loading()) {
-    <div class="loading">Učitavanje korisnika…</div>
-  } @else {
-    <section class="users">
-      @for (user of users(); track user.subject) {
-        <article>
-          <div class="user-heading">
-            <div><strong>{{ user.display_name || user.email || 'Korisnik' }}</strong><small>{{ user.email || user.subject }}</small></div>
-            <span>Poslednja prijava {{ user.last_seen_at | date: 'dd.MM.yyyy. HH:mm' }}</span>
-          </div>
-          <div class="flags">
-            <label><input type="checkbox" [checked]="user.is_enabled" (change)="setFlag(user, 'is_enabled', $any($event.target).checked)" /> Aktivan nalog</label>
-            <label><input type="checkbox" [checked]="user.is_admin" (change)="setFlag(user, 'is_admin', $any($event.target).checked)" /> Administrator</label>
-            <label><input type="checkbox" [checked]="user.all_bookmakers" (change)="setFlag(user, 'all_bookmakers', $any($event.target).checked)" /> Sve kladionice</label>
-          </div>
-          @if (!user.all_bookmakers) {
-            <div class="bookmaker-grid">
-              @for (bookmaker of bookmakers(); track bookmaker.key) {
-                <label>
-                  <input type="checkbox" [checked]="user.bookmakers.includes(bookmaker.key)" (change)="setBookmaker(user, bookmaker.key, $any($event.target).checked)" />
-                  <span>{{ bookmaker.name }}</span><small>{{ bookmaker.country }}</small>
-                </label>
-              }
-            </div>
-          }
-          <button class="save" [disabled]="saving() === user.subject" (click)="save(user)">
-            {{ saving() === user.subject ? 'Čuvanje…' : 'Sačuvaj pristup' }}
-          </button>
-        </article>
-      } @empty {
-        <div class="loading">Nema registrovanih korisnika.</div>
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Kontrolni centar</p>
+      <h1>Administracija korisnika</h1>
+      <p>Pravi naloge i odredi koje kladionice svaki član može da vidi.</p>
+    </div>
+    <button class="primary" type="button" (click)="createOpen.set(!createOpen())">
+      {{ createOpen() ? 'Zatvori formu' : '+ Novi korisnik' }}
+    </button>
+  </section>
+
+  <section class="stats" aria-label="Pregled administracije">
+    <article><span>Korisnici</span><strong>{{ users().length }}</strong><small>ukupno naloga</small></article>
+    <article><span>Aktivni</span><strong>{{ activeUsers() }}</strong><small>mogu da koriste servis</small></article>
+    <article><span>Ograničeni</span><strong>{{ restrictedUsers() }}</strong><small>imaju izbor kladionica</small></article>
+    <article><span>Kladionice</span><strong>{{ bookmakers().length }}</strong><small>integracije u opticaju</small></article>
+  </section>
+
+  @if (notice(); as item) {
+    <div class="notice" [class.error]="item.kind === 'error'" role="status">{{ item.text }}</div>
+  }
+
+  @if (createOpen()) {
+    <section class="create-card">
+      <div class="section-heading">
+        <div><span>Auth0 nalog</span><h2>Napravi novog korisnika</h2></div>
+        <small>Lozinka se šalje direktno Auth0 servisu i ne čuva se u našoj bazi.</small>
+      </div>
+      <form [formGroup]="accountForm" (ngSubmit)="createAccount()">
+        <label><span>Ime i prezime</span><input formControlName="displayName" autocomplete="name" placeholder="Ime korisnika" /></label>
+        <label><span>Email</span><input formControlName="email" type="email" autocomplete="off" placeholder="korisnik@email.com" /></label>
+        <label><span>Početna lozinka</span><input formControlName="password" type="password" autocomplete="new-password" placeholder="Najmanje 8 karaktera" /></label>
+        <button class="primary" type="submit" [disabled]="creating()">{{ creating() ? 'Kreiranje…' : 'Napravi nalog' }}</button>
+      </form>
+      @if (accountForm.touched && accountForm.invalid) {
+        <p class="form-error">Unesi ispravan email i lozinku od najmanje 8 karaktera.</p>
       }
     </section>
+  }
+
+  @if (loading()) {
+    <div class="loading">Učitavanje administracije…</div>
+  } @else {
+    <div class="admin-layout">
+      <aside class="user-panel">
+        <div class="panel-title"><div><span>Korisnici</span><strong>{{ users().length }}</strong></div></div>
+        <label class="search"><span>⌕</span><input #userSearch placeholder="Pretraži korisnike" (input)="userQuery.set(userSearch.value)" /></label>
+        <div class="user-list">
+          @for (user of filteredUsers(); track user.subject) {
+            <button type="button" [class.selected]="selectedSubject() === user.subject" (click)="selectUser(user.subject)">
+              <b>{{ (user.display_name || user.email || 'K').slice(0, 1).toUpperCase() }}</b>
+              <span><strong>{{ user.display_name || user.email || 'Korisnik' }}</strong><small>{{ user.email || user.subject }}</small></span>
+              @if (user.is_admin) { <em>ADMIN</em> } @else { <i [class.off]="!user.is_enabled"></i> }
+            </button>
+          } @empty { <p class="empty">Nema korisnika za ovu pretragu.</p> }
+        </div>
+      </aside>
+
+      <section class="workspace">
+        @if (selectedUser(); as user) {
+          <article class="access-card">
+            <div class="user-heading">
+              <div class="identity">
+                <b>{{ (user.display_name || user.email || 'K').slice(0, 1).toUpperCase() }}</b>
+                <div><span>{{ user.is_admin ? 'Vlasnik sistema' : 'Korisnički nalog' }}</span><h2>{{ user.display_name || user.email || 'Korisnik' }}</h2><p>{{ user.email || user.subject }}</p></div>
+              </div>
+              <div class="last-seen"><span>Poslednja aktivnost</span><strong>{{ user.last_seen_at | date: 'dd.MM.yyyy. HH:mm' }}</strong></div>
+            </div>
+
+            @if (user.is_admin) {
+              <div class="owner-lock"><strong>Zaštićen vlasnički nalog</strong><span>Admin pravo određuje AWS allowlist i ne može se dodeliti iz ovog panela.</span></div>
+            } @else {
+              <div class="switch-row">
+                <div><strong>Aktivan nalog</strong><span>Isključen korisnik ne može da pristupi podacima.</span></div>
+                <label class="switch"><input type="checkbox" [checked]="user.is_enabled" (change)="setFlag(user, 'is_enabled', $any($event.target).checked)" /><span></span></label>
+              </div>
+              <div class="switch-row">
+                <div><strong>Pristup svim kladionicama</strong><span>Isključi za izbor pojedinačnih integracija.</span></div>
+                <label class="switch"><input type="checkbox" [checked]="user.all_bookmakers" (change)="setFlag(user, 'all_bookmakers', $any($event.target).checked)" /><span></span></label>
+              </div>
+
+              @if (!user.all_bookmakers) {
+                <div class="permission-head">
+                  <div><strong>Dozvoljene kladionice</strong><span>{{ user.bookmakers.length }} od {{ bookmakers().length }} izabrano</span></div>
+                  <div><button type="button" (click)="setAllBookmakers(user, true)">Izaberi sve</button><button type="button" (click)="setAllBookmakers(user, false)">Poništi</button></div>
+                </div>
+                <div class="bookmaker-grid permission-grid">
+                  @for (bookmaker of bookmakers(); track bookmaker.key) {
+                    <label [class.checked]="user.bookmakers.includes(bookmaker.key)">
+                      <input type="checkbox" [checked]="user.bookmakers.includes(bookmaker.key)" (change)="setBookmaker(user, bookmaker.key, $any($event.target).checked)" />
+                      <span><strong>{{ bookmaker.name }}</strong><small>{{ countryName(bookmaker.country) }}</small></span>
+                    </label>
+                  }
+                </div>
+              }
+              <button class="save" type="button" [disabled]="saving() === user.subject" (click)="save(user)">{{ saving() === user.subject ? 'Čuvanje…' : 'Sačuvaj pristup' }}</button>
+            }
+          </article>
+        }
+
+        <article class="catalog-card">
+          <div class="section-heading catalog-heading">
+            <div><span>Katalog integracija</span><h2>Sve kladionice u opticaju</h2><p>Kompletna imena, odvojena po tržištu.</p></div>
+            <label class="search"><span>⌕</span><input #bookSearch placeholder="Nađi kladionicu" (input)="bookmakerQuery.set(bookSearch.value)" /></label>
+          </div>
+          <div class="bookmaker-grid catalog-grid">
+            @for (bookmaker of filteredBookmakers(); track bookmaker.key) {
+              <div class="bookmaker-item">
+                <b>{{ bookmaker.name.slice(0, 1) }}</b>
+                <span><strong>{{ bookmaker.name }}</strong><small>{{ bookmaker.key }}</small></span>
+                <em [class.ba]="bookmaker.country === 'BA'">{{ countryName(bookmaker.country) }}</em>
+              </div>
+            } @empty { <p class="empty">Nema kladionice za ovu pretragu.</p> }
+          </div>
+        </article>
+      </section>
+    </div>
   }
 </main>
