@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "surebet-api",
+  "main": "worker/api-proxy.js",
+  "compatibility_date": "2026-08-29",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  }
+}
