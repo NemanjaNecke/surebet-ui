@@ -27,8 +27,9 @@ const LIVE_PAGE_LIMIT = 25;
 const PREMATCH_PAGE_LIMIT = 12;
 // WebSocket events are primary. This invisible poll closes gaps after tunnel
 // reconnects without replacing the rendered snapshot or showing a loader.
-const LIVE_REFRESH_MS = 15_000;
+const LIVE_REFRESH_MS = 60_000;
 const PREMATCH_REFRESH_MS = 120_000;
+const METADATA_REFRESH_MS = 300_000;
 const DASHBOARD_CACHE_KEY = 'sureedge.dashboard.v1';
 const EMPTY_SNAPSHOT: DashboardSnapshot = {
   bestOdds: [], opportunities: [], bookmakers: [], trend: [], liveEvents: 0, prematchEvents: 0,
@@ -89,6 +90,9 @@ export class SurebetApi {
   private liveAuxInFlight = false;
   private prematchInFlight = false;
   private prematchRefreshQueued = false;
+  private lastHealthRefreshAt = Number.NEGATIVE_INFINITY;
+  private lastCatalogRefreshAt = Number.NEGATIVE_INFINITY;
+  private requestBlockedUntil = 0;
   private prematchQuery = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
 
   readonly snapshot = this.snapshotState.asReadonly();
@@ -291,24 +295,37 @@ export class SurebetApi {
   private refreshLiveAuxiliary(limited: HttpParams): void {
     if (this.liveAuxInFlight) return;
     this.liveAuxInFlight = true;
+    const now = Date.now();
+    const refreshHealth = now - this.lastHealthRefreshAt >= METADATA_REFRESH_MS;
+    const refreshCatalog = now - this.lastCatalogRefreshAt >= METADATA_REFRESH_MS;
     forkJoin({
       surebets: this.http.get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: limited }).pipe(
         timeout(20_000), catchError(() => of(null)),
       ),
-      health: this.http.get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`).pipe(
-        timeout(20_000), catchError(() => of(null)),
-      ),
-      catalog: this.http.get<{ items: BookmakerOption[] }>(`${API_ROOT}/bookmakers`).pipe(
-        timeout(20_000), catchError(() => of(null)),
-      ),
+      health: refreshHealth
+        ? this.http.get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`).pipe(
+            timeout(20_000), catchError(() => of(null)),
+          )
+        : of(null),
+      catalog: refreshCatalog
+        ? this.http.get<{ items: BookmakerOption[] }>(`${API_ROOT}/bookmakers`).pipe(
+            timeout(20_000), catchError(() => of(null)),
+          )
+        : of(null),
     }).subscribe(({ surebets, health, catalog }) => {
       if (surebets) {
         this.liveOpportunities = surebets.items.map((row, index) =>
           this.toOpportunity(row, index, 'live'),
         );
       }
-      if (health) this.bookmakers = this.toBookmakers(health);
-      if (catalog) this.bookmakerCatalog.set(catalog.items);
+      if (health) {
+        this.bookmakers = this.toBookmakers(health);
+        this.lastHealthRefreshAt = Date.now();
+      }
+      if (catalog) {
+        this.bookmakerCatalog.set(catalog.items);
+        this.lastCatalogRefreshAt = Date.now();
+      }
       if (surebets || health || catalog) this.publishSnapshot(this.combinedSnapshot());
       this.liveAuxInFlight = false;
     });
@@ -443,6 +460,7 @@ export class SurebetApi {
   }
 
   private canRequest(): boolean {
+    if (Date.now() < this.requestBlockedUntil) return false;
     return !authEnabled || (this.session.ready() && this.session.authenticated());
   }
 
@@ -496,6 +514,16 @@ export class SurebetApi {
 
   private setConnectionError(error: unknown): void {
     const status = error instanceof HttpErrorResponse ? error.status : null;
+    if (error instanceof HttpErrorResponse && status === 429) {
+      const body = typeof error.error === 'string' ? error.error : JSON.stringify(error.error ?? '');
+      if (body.includes('1027')) {
+        const nextReset = new Date();
+        nextReset.setUTCHours(24, 1, 0, 0);
+        this.requestBlockedUntil = nextReset.getTime();
+      } else {
+        this.requestBlockedUntil = Date.now() + 60_000;
+      }
+    }
     const transient = error instanceof TimeoutError
       || status === 0
       || status === 408

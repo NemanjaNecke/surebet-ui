@@ -75,8 +75,8 @@ describe('SurebetApi', () => {
     api.refresh('live');
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
-    http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
-    http.expectOne((request) => request.url.endsWith('/bookmakers')).flush({ items: [] });
+    http.expectNone((request) => request.url.endsWith('/bookmakers/health'));
+    http.expectNone((request) => request.url.endsWith('/bookmakers'));
     http.expectNone((request) => request.url.includes('/odds/prematch/') || request.url.includes('/surebets/prematch/'));
     expect(api.snapshot().bestOdds.filter((item) => item.scope === 'prematch')).toHaveLength(1);
     expect(api.snapshot().opportunities.filter((item) => item.scope === 'prematch')).toHaveLength(2);
@@ -113,8 +113,8 @@ describe('SurebetApi', () => {
     const failLiveRefresh = () => {
       api.refresh('live');
       http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
-      http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
-      http.expectOne((request) => request.url.endsWith('/bookmakers')).flush({ items: [] });
+      http.expectNone((request) => request.url.endsWith('/bookmakers/health'));
+      http.expectNone((request) => request.url.endsWith('/bookmakers'));
       http.expectOne((request) => request.url.endsWith('/odds/live/best')).error(
         new ProgressEvent('network error'),
       );

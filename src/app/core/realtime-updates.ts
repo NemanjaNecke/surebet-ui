@@ -8,7 +8,10 @@ import { Session } from './session';
 import { SurebetApi } from './surebet-api';
 
 const REFRESH_EVENT_TYPES = new Set(['odds.snapshot', 'odds.update', 'match.removed']);
-const REALTIME_REFRESH_THROTTLE_MS = 2_000;
+// A realtime event is only a signal that a newer complete snapshot exists.
+// Coalesce the event burst so one active tab stays well below the Workers
+// free-tier request budget while still refreshing much faster than prematch.
+const REALTIME_REFRESH_THROTTLE_MS = 30_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 export function shouldRefreshFromRealtimeMessage(data: unknown): boolean {

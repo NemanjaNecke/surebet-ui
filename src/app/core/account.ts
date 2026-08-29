@@ -7,19 +7,35 @@ import { AccountProfile } from './models';
 import { runtimeConfig } from './runtime-config';
 import { Session } from './session';
 
+const ACCOUNT_CACHE_KEY = 'sureedge.account.v1';
+
+function readCachedProfile(): AccountProfile | null {
+  try {
+    const raw = sessionStorage.getItem(ACCOUNT_CACHE_KEY);
+    if (!raw) return null;
+    const profile = JSON.parse(raw) as AccountProfile;
+    return profile?.subject && profile?.entitlement ? profile : null;
+  } catch {
+    return null;
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class Account {
   private readonly http = inject(HttpClient);
   private readonly session = inject(Session);
   private readonly router = inject(Router);
-  readonly profile = signal<AccountProfile | null>(null);
+  readonly profile = signal<AccountProfile | null>(readCachedProfile());
   readonly loading = signal(false);
 
   constructor() {
     effect(() => {
       if (this.session.loading()) return;
       if (this.session.authenticated()) this.load().subscribe();
-      else this.profile.set(null);
+      else {
+        this.profile.set(null);
+        sessionStorage.removeItem(ACCOUNT_CACHE_KEY);
+      }
     });
   }
 
@@ -27,12 +43,12 @@ export class Account {
     if (this.loading()) return of(this.profile());
     this.loading.set(true);
     return this.http.get<AccountProfile>(`${runtimeConfig.apiBaseUrl}/auth/me`).pipe(
-      tap((profile) => this.profile.set(profile)),
-      map((profile) => profile as AccountProfile | null),
-      catchError(() => {
-        this.profile.set(null);
-        return of(null);
+      tap((profile) => {
+        this.profile.set(profile);
+        sessionStorage.setItem(ACCOUNT_CACHE_KEY, JSON.stringify(profile));
       }),
+      map((profile) => profile as AccountProfile | null),
+      catchError(() => of(this.profile())),
       tap(() => this.loading.set(false)),
     );
   }
