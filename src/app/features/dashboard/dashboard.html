@@ -9,7 +9,7 @@
       <button [class.active]="marketView() === 'surebets'" (click)="selectView('surebets')">
         Surebetovi <span>{{ opportunities().length }}</span>
       </button>
-      <a routerLink="/kladionice">Kladionice</a>
+      <a routerLink="/promocije">Promocije</a>
     </nav>
     <div class="header-actions">
       <span class="data-state" [class.preview]="api.mode() !== 'live'" aria-live="polite">

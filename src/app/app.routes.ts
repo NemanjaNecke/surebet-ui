@@ -10,11 +10,12 @@ export const routes: Routes = [
     title: 'Administracija · SureEdge',
   },
   {
-    path: 'kladionice',
+    path: 'promocije',
     loadComponent: () =>
       import('./features/promotions/promotions').then((module) => module.Promotions),
-    title: 'Promocije kladionica · SureEdge',
+    title: 'Promocije · SureEdge',
   },
+  { path: 'kladionice', redirectTo: 'promocije', pathMatch: 'full' },
   {
     path: '',
     loadComponent: () =>
