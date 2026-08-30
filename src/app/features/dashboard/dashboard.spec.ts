@@ -131,6 +131,23 @@ describe('Dashboard', () => {
     expect(cards[0].querySelectorAll('.team-emblem')).toHaveLength(2);
   });
 
+  it('shows the exact period and line for a handicap surebet', () => {
+    fixture.componentInstance.marketView.set('surebets');
+    snapshot.set({
+      ...PREVIEW_SNAPSHOT,
+      opportunities: [{
+        ...PREVIEW_SNAPSHOT.opportunities[0],
+        market: 'Hendikep', period: 'FT', line: -2.5,
+        legs: PREVIEW_SNAPSHOT.opportunities[0].legs.map((leg) => ({ ...leg, line: -2.5 })),
+      }],
+    });
+    fixture.detectChanges();
+
+    const card = fixture.nativeElement.querySelector('.surebet-card')?.textContent ?? '';
+    expect(card).toContain('Hendikep · FT · Granica -2.5');
+    expect(card).toContain('1 · -2.5');
+  });
+
   it('shows the filtered result count in every surebet badge', () => {
     fixture.componentInstance.marketView.set('surebets');
     fixture.componentInstance.setScope('prematch');

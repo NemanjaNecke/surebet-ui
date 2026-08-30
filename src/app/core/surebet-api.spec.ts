@@ -34,11 +34,12 @@ describe('SurebetApi', () => {
     expect(historyRequest.request.params.get('history_hours')).toBe('168');
     historyRequest.flush({ count: 0, total: 12, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 1, items: [{
-      match_id: 'match-1', market: 'FT.1X2', home: 'Home', away: 'Away', league: 'League',
+      match_id: 'match-1', market: 'FT.HANDICAP', market_label: 'Hendikep', period: 'FT', line: -2.5,
+      home: 'Home', away: 'Away', league: 'League',
       kickoff_utc: now, roi: 0.05, legs: [
-        { outcome: '1', bookmaker: 'Alpha', price: 3.1, observed_at: now },
-        { outcome: 'X', bookmaker: 'Beta', price: 3.5, observed_at: now },
-        { outcome: '2', bookmaker: 'Gamma', price: 2.8, observed_at: now },
+        { outcome: 'H1', bookmaker: 'Alpha', price: 3.1, line: -2.5, observed_at: now },
+        { outcome: 'HX', bookmaker: 'Beta', price: 3.5, line: -2.5, observed_at: now },
+        { outcome: 'H2', bookmaker: 'Gamma', price: 2.8, line: -2.5, observed_at: now },
       ],
     }] });
     http.expectOne((request) => request.url.endsWith('/surebets/prematch')).flush({
@@ -63,6 +64,10 @@ describe('SurebetApi', () => {
     expect(api.snapshot().bestOdds[1].scope).toBe('prematch');
     expect(api.snapshot().opportunities).toHaveLength(3);
     expect(api.snapshot().opportunities[0].roi).toBe(5);
+    expect(api.snapshot().opportunities[0]).toMatchObject({
+      market: 'Hendikep', period: 'FT', line: -2.5,
+    });
+    expect(api.snapshot().opportunities[0].legs.every((leg) => leg.line === -2.5)).toBe(true);
     expect(api.snapshot().opportunities[1].roi).toBe(4);
     expect(api.snapshot().opportunities[2]).toMatchObject({
       kind: 'cross-market', pair: '1X vs 2', market: 'Dupla šansa',

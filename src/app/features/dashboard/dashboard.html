@@ -250,7 +250,7 @@
                   }
                 </div>
                 <span>
-                  {{ marketName(item.market) }} ·
+                  {{ marketName(item.market) }} · {{ item.period }}@if (item.line !== null) { · Granica {{ item.line }} } ·
                   @if (item.liveState; as state) {
                     {{ state.homeScore }}:{{ state.awayScore }} · {{ livePeriodName(state.period) }} · {{ state.clockMinute | number: '1.0-0' }}'
                   } @else if (item.kickoff) {
@@ -261,7 +261,7 @@
                 </span>
               </div>
               <div class="surebet-legs">
-                @for (leg of item.legs; track leg.label) { <div><span>{{ leg.label }}</span><small>{{ displayName(leg.bookmaker) }}@if (leg.country) { · {{ leg.country === 'RS' ? 'Srbija' : 'BiH' }} }</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div> }
+                @for (leg of item.legs; track leg.label) { <div><span>{{ leg.label }}@if (leg.line !== null) { · {{ leg.line }} }</span><small>{{ displayName(leg.bookmaker) }}@if (leg.country) { · {{ leg.country === 'RS' ? 'Srbija' : 'BiH' }} }</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div> }
               </div>
               <div class="surebet-action"><span><i></i> {{ item.ageSeconds }} s</span><button (click)="openOpportunity(item)">Raspodela uloga <b>→</b></button></div>
             </article>
@@ -324,7 +324,7 @@
           </div>
         }
       </div>
-      <p class="drawer-subtitle">{{ selectedOpportunity()!.league }} · {{ marketName(selectedOpportunity()!.market) }}</p>
+      <p class="drawer-subtitle">{{ selectedOpportunity()!.league }} · {{ marketName(selectedOpportunity()!.market) }} · {{ selectedOpportunity()!.period }}@if (selectedOpportunity()!.line !== null) { · Granica {{ selectedOpportunity()!.line }} }</p>
       <label class="stake-input"><span>Ukupan ulog</span><div><b>€</b><input #stakeInput type="number" min="1" step="10" [value]="stake()" (input)="setStake(stakeInput.value)" /></div></label>
       <div class="stake-rows">
         @for (row of calculatorRows(); track row.label) { <div><span class="outcome">{{ row.label }}</span><div><strong>{{ displayName(row.bookmaker) }}</strong><small>Kvota {{ row.odds | number: '1.2-2' }}</small></div><b>€{{ row.stake | number: '1.2-2' }}</b></div> }

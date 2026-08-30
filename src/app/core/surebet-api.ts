@@ -600,12 +600,22 @@ export class SurebetApi {
     fallbackMarket = '',
   ): SurebetOpportunity {
     const rawLegs = Array.isArray(row['legs']) ? (row['legs'] as Record<string, unknown>[]) : [];
-    const legs: SurebetLeg[] = rawLegs.map((leg) => ({
-      label: String(leg['outcome'] ?? '?'),
-      bookmaker: String(leg['bookmaker'] ?? 'Unknown'),
-      odds: Number(leg['price'] ?? 0),
-      country: this.countryForBookmaker(String(leg['bookmaker'] ?? '')),
-    }));
+    const rawLine = row['line'] === null || row['line'] === undefined || row['line'] === ''
+      ? Number.NaN
+      : Number(row['line']);
+    const opportunityLine = Number.isFinite(rawLine) ? rawLine : null;
+    const legs: SurebetLeg[] = rawLegs.map((leg) => {
+      const rawLegLine = leg['line'] === null || leg['line'] === undefined || leg['line'] === ''
+        ? Number.NaN
+        : Number(leg['line']);
+      return {
+        label: String(leg['outcome'] ?? '?'),
+        bookmaker: String(leg['bookmaker'] ?? 'Unknown'),
+        odds: Number(leg['price'] ?? 0),
+        line: Number.isFinite(rawLegLine) ? rawLegLine : opportunityLine,
+        country: this.countryForBookmaker(String(leg['bookmaker'] ?? '')),
+      };
+    });
     if (!legs.length) {
       const candidates: [string, string, string][] = fallbackMarket === 'DC'
         ? [[String(row['pair'] ?? 'DC'), 'best_dc_src', 'best_dc'], ['Opposite', 'best_so_src', 'best_so']]
@@ -614,7 +624,7 @@ export class SurebetApi {
         const odds = Number(row[oddsKey]);
         if (Number.isFinite(odds) && odds > 1) {
           const bookmaker = String(row[sourceKey] ?? 'Unknown');
-          legs.push({ label, bookmaker, odds, country: this.countryForBookmaker(bookmaker) });
+          legs.push({ label, bookmaker, odds, line: opportunityLine, country: this.countryForBookmaker(bookmaker) });
         }
       }
     }
@@ -643,6 +653,8 @@ export class SurebetApi {
       kind,
       pair: pair || null,
       market: String(row['market_label'] ?? this.marketLabel(rawMarket, legs.length)),
+      period: String(row['period'] ?? 'FT'),
+      line: opportunityLine,
       fixture: `${String(row['home'] ?? 'Home')} — ${String(row['away'] ?? 'Away')}`,
       league: String(row['league'] ?? 'Unknown league'),
       kickoff: String(row['kickoff_utc'] ?? ''),

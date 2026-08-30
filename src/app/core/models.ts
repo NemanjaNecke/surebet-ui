@@ -13,6 +13,7 @@ export interface SurebetLeg {
   label: string;
   bookmaker: string;
   odds: number;
+  line: number | null;
   country?: 'RS' | 'BA' | null;
 }
 
@@ -21,6 +22,8 @@ export interface SurebetOpportunity {
   kind: SurebetKind;
   pair: string | null;
   market: string;
+  period: string;
+  line: number | null;
   fixture: string;
   league: string;
   kickoff: string;
