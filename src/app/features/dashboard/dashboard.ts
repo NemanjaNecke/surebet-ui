@@ -11,6 +11,7 @@ import { TeamLogos } from '../../core/team-logos';
 
 type OpportunityKindFilter = 'all' | SurebetKind;
 type PrematchTimeWindow = 'today' | '1h' | '3h' | 'tomorrow' | '3d' | 'all';
+type RegionCode = 'RS' | 'BA';
 
 @Component({
   selector: 'app-dashboard',
@@ -32,6 +33,7 @@ export class Dashboard {
   readonly sport = signal('all');
   readonly scope = signal<OddsScope>('live');
   readonly bookmaker = signal('');
+  readonly countries = signal<ReadonlySet<RegionCode>>(new Set<RegionCode>(['RS', 'BA']));
   readonly timeWindow = signal<PrematchTimeWindow>('today');
   readonly opportunityKind = signal<OpportunityKindFilter>('all');
   readonly marketView = signal<'odds' | 'surebets'>('odds');
@@ -70,7 +72,10 @@ export class Dashboard {
   ]);
 
   readonly bookmakers = computed(() => {
-    const catalog = this.api.bookmakerCatalog().filter((item) => item.permitted);
+    const selectedCountries = this.countries();
+    const catalog = this.api.bookmakerCatalog().filter(
+      (item) => item.permitted && (!item.country || selectedCountries.has(item.country)),
+    );
     if (catalog.length) return catalog;
     return [...new Set(
       this.api.snapshot().bestOdds.flatMap((item) => item.selections.map((selection) => selection.bookmaker)),
@@ -79,6 +84,7 @@ export class Dashboard {
 
   readonly opportunities = computed(() => {
     const query = this.search().trim().toLocaleLowerCase();
+    const selectedCountries = this.countries();
     return this.api.snapshot().opportunities.filter((item) => {
       const marketMatches = this.market() === 'all' || item.market.toLocaleLowerCase() === this.market().toLocaleLowerCase();
       const scopeMatches = item.scope === this.scope();
@@ -86,15 +92,25 @@ export class Dashboard {
       const bookmakerMatches = !this.bookmaker() || item.legs.some((leg) => leg.bookmaker === this.bookmaker());
       const timeMatches = this.matchesTimeWindow(item.kickoff, item.ageSeconds, item.scope);
       const kindMatches = this.opportunityKind() === 'all' || item.kind === this.opportunityKind();
+      const legCountries = item.legs.map((leg) => leg.country).filter(Boolean) as RegionCode[];
+      const countryMatches = !legCountries.length || legCountries.every((country) => selectedCountries.has(country));
       const queryMatches = !query || `${item.fixture} ${item.league} ${item.market} ${item.legs.map((leg) => this.displayName(leg.bookmaker)).join(' ')}`
         .toLocaleLowerCase().includes(query);
-      return marketMatches && scopeMatches && sportMatches && bookmakerMatches && timeMatches && kindMatches && queryMatches;
+      return marketMatches && scopeMatches && sportMatches && bookmakerMatches && timeMatches
+        && kindMatches && countryMatches && queryMatches;
     });
   });
 
   readonly bestOdds = computed(() => {
     const query = this.search().trim().toLocaleLowerCase();
-    return this.api.snapshot().bestOdds.filter((item) => {
+    const selectedCountries = this.countries();
+    return this.api.snapshot().bestOdds.map((item) => ({
+      ...item,
+      selections: item.selections.filter((selection) => {
+        const country = this.countryForBookmaker(selection.bookmaker);
+        return !country || selectedCountries.has(country);
+      }),
+    })).filter((item) => {
       const marketMatches = this.market() === 'all' || item.marketKey.toLocaleLowerCase() === this.market().toLocaleLowerCase();
       const sportMatches = this.sport() === 'all' || item.sport.toLocaleLowerCase() === this.sport().toLocaleLowerCase();
       const scopeMatches = item.scope === this.scope();
@@ -102,7 +118,8 @@ export class Dashboard {
       const timeMatches = this.matchesTimeWindow(item.kickoff, item.ageSeconds, item.scope);
       const queryMatches = !query || `${item.fixture} ${item.league} ${this.sportName(item.sport)} ${item.market} ${item.selections.map((selection) => this.displayName(selection.bookmaker)).join(' ')}`
         .toLocaleLowerCase().includes(query);
-      return marketMatches && sportMatches && scopeMatches && bookmakerMatches && timeMatches && queryMatches;
+      return item.selections.length > 0 && marketMatches && sportMatches && scopeMatches
+        && bookmakerMatches && timeMatches && queryMatches;
     });
   });
 
@@ -215,6 +232,17 @@ export class Dashboard {
         kickoffTo: window.to,
       });
     });
+    effect(() => {
+      const selected = (['RS', 'BA'] as const).filter((country) => this.countries().has(country));
+      const currentBookmaker = this.bookmaker();
+      untracked(() => {
+        this.api.setCountryFilter(selected);
+        if (currentBookmaker && !this.bookmakers().some((item) => item.key === currentBookmaker)) {
+          this.bookmaker.set('');
+          this.page.set(1);
+        }
+      });
+    });
   }
 
   setSearch(value: string): void {
@@ -280,6 +308,41 @@ export class Dashboard {
   setBookmaker(bookmaker: string): void {
     this.bookmaker.set(bookmaker);
     this.page.set(1);
+  }
+
+  toggleCountry(country: RegionCode, checked: boolean): void {
+    const next = new Set(this.countries());
+    if (checked) next.add(country);
+    else next.delete(country);
+    if (!next.size) return;
+    this.countries.set(next);
+    this.page.set(1);
+  }
+
+  countrySelected(country: RegionCode): boolean {
+    return this.countries().has(country);
+  }
+
+  countryFlag(country: RegionCode | '' | null): string {
+    return country === 'RS' ? '🇷🇸' : country === 'BA' ? '🇧🇦' : '🌐';
+  }
+
+  countryForBookmaker(bookmaker: string): RegionCode | null {
+    const normalized = bookmaker.trim().toLocaleLowerCase();
+    const catalogCountry = this.api.bookmakerCatalog().find(
+      (item) => item.key.toLocaleLowerCase() === normalized,
+    )?.country;
+    if (catalogCountry === 'RS' || catalogCountry === 'BA') return catalogCountry;
+    const serbia = new Set([
+      'admiral_rs', 'balkanbet_rs', 'ibet365_rs', 'maxbet_rs', 'meridianbet_rs',
+      'merkurxtip_rs', 'mozzart_com', 'soccerbet_rs', 'volcanobet_rs',
+    ]);
+    const bosnia = new Set([
+      'admiral', 'betlive', 'betole', 'formula_ba', 'maxbet', 'mbet', 'mdshop',
+      'meridianbet', 'mozzart', 'premier', 'soccerbet', 'sportplus', 'volcanobet',
+      'wwin', 'xlivebet',
+    ]);
+    return serbia.has(normalized) ? 'RS' : bosnia.has(normalized) ? 'BA' : null;
   }
 
   setTimeWindow(value: PrematchTimeWindow): void {

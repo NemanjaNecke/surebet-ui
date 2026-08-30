@@ -1,5 +1,6 @@
 import { computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 
 import { PREVIEW_SNAPSHOT } from '../../core/preview-data';
@@ -23,7 +24,7 @@ describe('Dashboard', () => {
     comparison: signal(null), comparisonLoading: signal(false), comparisonError: signal(''),
     bookmakerCatalog: signal([]), prematchTotal: signal(1),
     healthyBookmakers: computed(() => snapshot().bookmakers.filter((item) => item.status === 'online').length),
-    refresh: vi.fn(), setPrematchQuery: vi.fn(), openComparison: vi.fn(), closeComparison: vi.fn(),
+    refresh: vi.fn(), setPrematchQuery: vi.fn(), setCountryFilter: vi.fn(), openComparison: vi.fn(), closeComparison: vi.fn(),
   };
   const sessionEnabled = signal(false);
   const session = {
@@ -42,6 +43,7 @@ describe('Dashboard', () => {
     await TestBed.configureTestingModule({
       imports: [Dashboard],
       providers: [
+        provideRouter([]),
         { provide: SurebetApi, useValue: api },
         { provide: Session, useValue: session },
         { provide: Account, useValue: account },
@@ -213,6 +215,24 @@ describe('Dashboard', () => {
     expect(fixture.nativeElement.querySelector('.bookmaker-section select')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.time-section select')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.filters .filter-buttons')).toBeNull();
+  });
+
+  it('filters bookmaker jurisdictions with flag checkboxes and keeps one selected', () => {
+    api.setCountryFilter.mockClear();
+    const controls = fixture.nativeElement.querySelectorAll('.country-options input') as NodeListOf<HTMLInputElement>;
+    expect(controls).toHaveLength(2);
+    expect(controls[0].checked).toBe(true);
+    expect(controls[1].checked).toBe(true);
+
+    controls[1].click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.countrySelected('RS')).toBe(true);
+    expect(fixture.componentInstance.countrySelected('BA')).toBe(false);
+    expect(api.setCountryFilter).toHaveBeenCalledWith(['RS']);
+
+    controls[0].click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.countrySelected('RS')).toBe(true);
   });
 
   it('keeps live and prematch filters isolated and paginates results', () => {

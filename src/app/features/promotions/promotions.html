@@ -1,0 +1,71 @@
+<div class="promotions-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/" aria-label="SureEdge početna">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <strong>Sure<span>Edge</span></strong>
+    </a>
+    <nav aria-label="Glavna navigacija">
+      <a routerLink="/">Kvote i surebetovi</a>
+      <a class="active" routerLink="/kladionice">Kladionice</a>
+    </nav>
+    <div class="account-actions">
+      @if (account.profile()?.entitlement?.admin) { <a routerLink="/admin">Admin</a> }
+      @if (session.authenticated()) { <button (click)="session.logout()">Odjava</button> }
+    </div>
+  </header>
+
+  <main>
+    <section class="promo-hero">
+      <div>
+        <p class="eyebrow">PONUDE DIREKTNO OD KLADIONICA</p>
+        <h1>Promocije na jednom mestu.</h1>
+        <p>Pregled aktivnih promocija regionalnih kladionica. Ne rangiramo i ne upoređujemo vrednost bonusa — prikazujemo podatke izdavača i vodimo vas na originalne uslove.</p>
+      </div>
+      <aside><strong>{{ promotions().length }}</strong><span>promocija</span><small>{{ activeSourceCount() }} izvora sa ponudama</small></aside>
+    </section>
+
+    <section class="promo-board">
+      <div class="filters">
+        <label class="search-field"><span>Pretraga</span><input #searchBox type="search" placeholder="Naziv promocije ili kladionice" [value]="search()" (input)="setSearch(searchBox.value)" /></label>
+        <div class="country-filter"><span>Država</span><div>
+          <label [class.active]="selected('RS')"><input type="checkbox" [checked]="selected('RS')" (change)="toggleCountry('RS', $any($event.target).checked)" /><b>🇷🇸</b> Srbija</label>
+          <label [class.active]="selected('BA')"><input type="checkbox" [checked]="selected('BA')" (change)="toggleCountry('BA', $any($event.target).checked)" /><b>🇧🇦</b> BiH</label>
+        </div></div>
+        <label><span>Kladionica</span><select #bookmakerSelect (change)="bookmaker.set(bookmakerSelect.value)">
+          <option value="">Sve kladionice ({{ bookmakers().length }})</option>
+          @for (item of bookmakers(); track item.key) { <option [value]="item.key">{{ item.name }}</option> }
+        </select></label>
+        <label><span>Vrsta promocije</span><select #categorySelect (change)="category.set($any(categorySelect.value))">
+          <option value="all">Sve promocije</option><option value="sport">Sportska ponuda</option><option value="casino">Kazino</option><option value="welcome">Dobrodošlica</option><option value="other">Ostalo</option>
+        </select></label>
+      </div>
+
+      @if (api.error()) { <div class="status error">{{ api.error() }}</div> }
+      @if (api.loading() && !api.items().length) {
+        <div class="loading"><i></i><strong>Učitavamo promocije sa sajtova kladionica…</strong></div>
+      } @else {
+        <div class="promotion-grid">
+          @for (item of promotions(); track item.id) {
+            <article>
+              <div class="promo-image">
+                @if (item.image_url) { <img [src]="item.image_url" [alt]="item.title" loading="lazy" decoding="async" referrerpolicy="no-referrer" (error)="hideBrokenImage($event)" /> }
+                <span>{{ flag(item.country) }}</span>
+              </div>
+              <div class="promo-content">
+                <div class="promo-meta"><strong>{{ item.bookmaker_name }}</strong><span>{{ categoryName(item.category) }}</span></div>
+                <h2>{{ item.title }}</h2>
+                @if (item.summary) { <p>{{ item.summary }}</p> }
+                @if (item.ends_at) { <small>Važi do {{ item.ends_at | date: 'dd.MM.yyyy. · HH:mm' }}</small> }
+                <a [href]="item.target_url" target="_blank" rel="noopener noreferrer nofollow">Pogledaj originalnu promociju <b>↗</b></a>
+              </div>
+            </article>
+          } @empty {
+            <div class="empty"><strong>Nema promocija za izabrane filtere</strong><span>Izaberite drugu državu, kladionicu ili vrstu promocije.</span></div>
+          }
+        </div>
+      }
+
+      <p class="disclaimer">{{ api.disclaimer() }} iBet365 i XLiveBet nisu prikazani jer nemaju promotivni feed.</p>
+    </section>
+  </main>
+</div>

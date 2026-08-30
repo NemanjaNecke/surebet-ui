@@ -9,6 +9,7 @@
       <button [class.active]="marketView() === 'surebets'" (click)="selectView('surebets')">
         Surebetovi <span>{{ opportunities().length }}</span>
       </button>
+      <a routerLink="/kladionice">Kladionice</a>
     </nav>
     <div class="header-actions">
       <span class="data-state" [class.preview]="api.mode() !== 'live'" aria-live="polite">
@@ -154,12 +155,25 @@
             </select>
           </label>
         }
+        <div class="country-section">
+          <span>Država</span>
+          <div class="country-options" role="group" aria-label="Izaberi države kladionica">
+            <label [class.active]="countrySelected('RS')">
+              <input type="checkbox" [checked]="countrySelected('RS')" (change)="toggleCountry('RS', $any($event.target).checked)" />
+              <b aria-hidden="true">🇷🇸</b> Srbija
+            </label>
+            <label [class.active]="countrySelected('BA')">
+              <input type="checkbox" [checked]="countrySelected('BA')" (change)="toggleCountry('BA', $any($event.target).checked)" />
+              <b aria-hidden="true">🇧🇦</b> BiH
+            </label>
+          </div>
+        </div>
         <label class="select-wrap bookmaker-section">
           <span>Kladionica</span>
           <select #bookmakerSelect (change)="setBookmaker(bookmakerSelect.value)" aria-label="Izaberi kladionicu">
             <option value="" [selected]="!bookmaker()">Sve dostupne kladionice ({{ bookmakers().length }})</option>
             @for (item of bookmakers(); track item.key) {
-              <option [value]="item.key" [selected]="bookmaker() === item.key">{{ item.name }} · {{ item.country }}</option>
+              <option [value]="item.key" [selected]="bookmaker() === item.key">{{ countryFlag(item.country) }} {{ item.name }}</option>
             }
           </select>
         </label>
@@ -213,7 +227,7 @@
               <div class="market-title"><span>{{ marketName(item.market) }}</span><small>{{ item.period }}@if (item.line !== null) { · {{ item.line }}}</small></div>
               <div class="price-grid" [class.two-way]="item.selections.length === 2">
                 @for (selection of item.selections; track selection.label) {
-                  <div class="best-price"><span>{{ selection.label }}</span><strong>{{ selection.odds | number: '1.2-2' }}</strong><small>{{ displayName(selection.bookmaker) }}</small></div>
+                  <div class="best-price"><span>{{ selection.label }}</span><strong>{{ selection.odds | number: '1.2-2' }}</strong><small>{{ countryFlag(countryForBookmaker(selection.bookmaker)) }} {{ displayName(selection.bookmaker) }}</small></div>
                 }
               </div>
               <footer>
@@ -261,7 +275,7 @@
                 </span>
               </div>
               <div class="surebet-legs">
-                @for (leg of item.legs; track leg.label) { <div><span>{{ leg.label }}@if (leg.line !== null) { · {{ leg.line }} }</span><small>{{ displayName(leg.bookmaker) }}@if (leg.country) { · {{ leg.country === 'RS' ? 'Srbija' : 'BiH' }} }</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div> }
+                @for (leg of item.legs; track leg.label) { <div><span>{{ leg.label }}@if (leg.line !== null) { · {{ leg.line }} }</span><small>{{ countryFlag(leg.country ?? countryForBookmaker(leg.bookmaker)) }} {{ displayName(leg.bookmaker) }}</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div> }
               </div>
               <div class="surebet-action"><span><i></i> {{ item.ageSeconds }} s</span><button (click)="openOpportunity(item)">Raspodela uloga <b>→</b></button></div>
             </article>
@@ -364,7 +378,7 @@
             <section><h3>{{ marketName(marketItem.label) }} <small>{{ marketItem.period }}@if (marketItem.line !== null) { · {{ marketItem.line }}}</small></h3>
               @for (outcome of marketItem.outcomes; track outcome.label) {
                 <div class="outcome-group"><strong>{{ outcome.label }}</strong><div>
-                  @for (offer of outcome.offers; track offer.bookmaker) { <span [class.best]="offer.best"><small>{{ displayName(offer.bookmaker) }}</small><b>{{ offer.odds | number: '1.2-2' }}</b>@if (offer.best) { <em>Najbolja</em> }</span> }
+                  @for (offer of outcome.offers; track offer.bookmaker) { <span [class.best]="offer.best"><small>{{ countryFlag(countryForBookmaker(offer.bookmaker)) }} {{ displayName(offer.bookmaker) }}</small><b>{{ offer.odds | number: '1.2-2' }}</b>@if (offer.best) { <em>Najbolja</em> }</span> }
                 </div></div>
               }
             </section>

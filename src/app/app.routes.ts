@@ -10,6 +10,12 @@ export const routes: Routes = [
     title: 'Administracija · SureEdge',
   },
   {
+    path: 'kladionice',
+    loadComponent: () =>
+      import('./features/promotions/promotions').then((module) => module.Promotions),
+    title: 'Promocije kladionica · SureEdge',
+  },
+  {
     path: '',
     loadComponent: () =>
       import('./features/dashboard/dashboard').then((module) => module.Dashboard),

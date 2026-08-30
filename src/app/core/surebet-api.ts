@@ -93,7 +93,10 @@ export class SurebetApi {
   private lastHealthRefreshAt = Number.NEGATIVE_INFINITY;
   private lastCatalogRefreshAt = Number.NEGATIVE_INFINITY;
   private requestBlockedUntil = 0;
-  private prematchQuery = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
+  private countryCodes: Array<'RS' | 'BA'> = ['RS', 'BA'];
+  private prematchQuery = new HttpParams()
+    .set('limit', PREMATCH_PAGE_LIMIT)
+    .set('countries', this.countryCodes.join(','));
 
   readonly snapshot = this.snapshotState.asReadonly();
   readonly mode = signal<DataMode>(authEnabled ? (this.restored ? 'stale' : 'loading') : 'preview');
@@ -161,13 +164,25 @@ export class SurebetApi {
     this.refreshPrematch(foreground);
   }
 
+  setCountryFilter(countries: ReadonlyArray<'RS' | 'BA'>): void {
+    const requested = new Set(countries);
+    const selected = (['RS', 'BA'] as const).filter((country) => requested.has(country));
+    if (!selected.length || selected.join(',') === this.countryCodes.join(',')) return;
+    this.countryCodes = selected;
+    this.prematchQuery = this.prematchQuery.set('countries', selected.join(','));
+    if (this.prematchInFlight) this.prematchRefreshQueued = true;
+    this.refreshLive(false);
+    this.refreshPrematch(false);
+  }
+
   setPrematchQuery(query: {
     limit: number; offset: number; market?: string; sport?: string;
     bookie?: string; search?: string; kickoffFrom?: string; kickoffTo?: string;
   }): void {
     let params = new HttpParams()
       .set('limit', query.limit)
-      .set('offset', query.offset);
+      .set('offset', query.offset)
+      .set('countries', this.countryCodes.join(','));
     if (query.market && query.market !== 'all') params = params.set('market', query.market);
     if (query.sport) params = params.set('sport', query.sport);
     if (query.bookie) params = params.set('bookie', query.bookie);
@@ -186,8 +201,12 @@ export class SurebetApi {
     if (this.loading() || this.prematchLoading()) return;
     this.loading.set(true);
     this.prematchLoading.set(true);
-    const liveParams = new HttpParams().set('limit', LIVE_PAGE_LIMIT);
-    const prematchParams = new HttpParams().set('limit', PREMATCH_PAGE_LIMIT);
+    const liveParams = new HttpParams()
+      .set('limit', LIVE_PAGE_LIMIT)
+      .set('countries', this.countryCodes.join(','));
+    const prematchParams = new HttpParams()
+      .set('limit', PREMATCH_PAGE_LIMIT)
+      .set('countries', this.countryCodes.join(','));
     const prematchWindow = prematchParams
       .set('include_history', 'true')
       .set('history_only', 'true')
@@ -264,7 +283,9 @@ export class SurebetApi {
     if (this.liveInFlight) return;
     this.liveInFlight = true;
     if (foreground) this.loading.set(true);
-    const limited = new HttpParams().set('limit', LIVE_PAGE_LIMIT);
+    const limited = new HttpParams()
+      .set('limit', LIVE_PAGE_LIMIT)
+      .set('countries', this.countryCodes.join(','));
     this.refreshLiveAuxiliary(limited);
     this.http.get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: limited }).pipe(
       timeout(20_000),

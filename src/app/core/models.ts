@@ -162,3 +162,33 @@ export interface RealtimeTicketResponse {
   expires_at: string;
   websocket_path: string;
 }
+
+export type PromotionCategory = 'sport' | 'casino' | 'welcome' | 'other';
+
+export interface PromotionItem {
+  id: string;
+  bookmaker: string;
+  bookmaker_name: string;
+  country: 'RS' | 'BA';
+  title: string;
+  summary: string;
+  category: PromotionCategory;
+  image_url: string | null;
+  target_url: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  fetched_at: string;
+}
+
+export interface PromotionSource {
+  bookmaker: string;
+  status: 'online' | 'unavailable';
+  count: number;
+}
+
+export interface PromotionFeed {
+  items: PromotionItem[];
+  count: number;
+  sources: PromotionSource[];
+  disclaimer: string;
+}
