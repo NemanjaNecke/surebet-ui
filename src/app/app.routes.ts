@@ -7,34 +7,64 @@ export const routes: Routes = [
     canActivate: [adminGuard],
     loadComponent: () =>
       import('./features/admin/admin').then((module) => module.Admin),
-    title: 'Administracija · SureEdge',
+    title: 'Administracija · KvotaRadar',
   },
   {
     path: 'promocije',
     loadComponent: () =>
       import('./features/promotions/promotions').then((module) => module.Promotions),
-    title: 'Promocije · SureEdge',
+    title: 'Promocije · KvotaRadar',
   },
   { path: 'kladionice', redirectTo: 'promocije', pathMatch: 'full' },
   {
-    path: '',
+    path: 'ponuda',
     loadComponent: () =>
       import('./features/dashboard/dashboard').then((module) => module.Dashboard),
-    title: 'Najbolje kvote i surebetovi · SureEdge',
+    data: { page: 'prematch' },
+    title: 'Ponuda pre meča · KvotaRadar',
+  },
+  {
+    path: 'uzivo',
+    loadComponent: () =>
+      import('./features/dashboard/dashboard').then((module) => module.Dashboard),
+    data: { page: 'live' },
+    title: 'Kvote uživo · KvotaRadar',
+  },
+  {
+    path: 'surebet',
+    loadComponent: () =>
+      import('./features/dashboard/dashboard').then((module) => module.Dashboard),
+    data: { page: 'surebet' },
+    title: 'Surebet prilike · KvotaRadar',
+  },
+  {
+    path: 'middlebet',
+    loadComponent: () =>
+      import('./features/dashboard/dashboard').then((module) => module.Dashboard),
+    data: { page: 'middlebet' },
+    title: 'Middlebet prilike · KvotaRadar',
+  },
+  {
+    path: 'valuebet',
+    loadComponent: () =>
+      import('./features/dashboard/dashboard').then((module) => module.Dashboard),
+    data: { page: 'valuebet' },
+    title: 'Valuebet prilike · KvotaRadar',
   },
   {
     path: 'prijava',
     loadComponent: () =>
       import('./features/auth/auth-page').then((module) => module.AuthPage),
     data: { mode: 'login' },
-    title: 'Prijava · SureEdge',
+    title: 'Prijava · KvotaRadar',
   },
   {
     path: 'registracija',
     loadComponent: () =>
       import('./features/auth/auth-page').then((module) => module.AuthPage),
     data: { mode: 'signup' },
-    title: 'Registracija · SureEdge',
+    title: 'Registracija · KvotaRadar',
   },
-  { path: '**', redirectTo: '' },
+  { path: '', redirectTo: 'ponuda', pathMatch: 'full' },
+  { path: '**', redirectTo: 'ponuda' },
 ];

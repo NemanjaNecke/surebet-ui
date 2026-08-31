@@ -22,9 +22,12 @@ describe('Dashboard', () => {
     lastPrematchUpdated: signal(new Date('2026-08-15T11:00:00Z')),
     errorMessage: signal('Demo podaci'),
     comparison: signal(null), comparisonLoading: signal(false), comparisonError: signal(''),
+    comparisonStatistics: signal(null), comparisonStatisticsLoading: signal(false),
+    comparisonStatisticsError: signal(''),
     bookmakerCatalog: signal([]), prematchTotal: signal(1),
     healthyBookmakers: computed(() => snapshot().bookmakers.filter((item) => item.status === 'online').length),
     refresh: vi.fn(), setPrematchQuery: vi.fn(), setCountryFilter: vi.fn(), openComparison: vi.fn(), closeComparison: vi.fn(),
+    loadComparisonStatistics: vi.fn(),
   };
   const sessionEnabled = signal(false);
   const session = {
@@ -57,8 +60,8 @@ describe('Dashboard', () => {
 
   it('marks non-live information as preview data', () => {
     expect(fixture.nativeElement.querySelector('.preview-banner')?.textContent).toContain('Demo podaci');
-    expect(fixture.nativeElement.querySelectorAll('.event-card')).toHaveLength(2);
-    expect(fixture.nativeElement.querySelector('.event-card time')?.textContent).toContain('1:0');
+    expect(fixture.nativeElement.querySelectorAll('.event-card')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelector('.event-card')?.textContent).toContain('Budućnost');
   });
 
   it('shows the connected bookmaker health total instead of the current page subset', () => {
@@ -135,6 +138,7 @@ describe('Dashboard', () => {
 
   it('shows the exact period and line for a handicap surebet', () => {
     fixture.componentInstance.marketView.set('surebets');
+    fixture.componentInstance.setScope('live');
     snapshot.set({
       ...PREVIEW_SNAPSHOT,
       opportunities: [{
@@ -150,19 +154,46 @@ describe('Dashboard', () => {
     expect(card).toContain('1 · -2.5');
   });
 
-  it('shows the filtered result count in every surebet badge', () => {
+  it('keeps the result count out of the surebet navigation link', () => {
     fixture.componentInstance.marketView.set('surebets');
     fixture.componentInstance.setScope('prematch');
     fixture.componentInstance.setOpportunityKind('cross-market');
     fixture.detectChanges();
 
     const expected = String(fixture.componentInstance.opportunities().length);
-    const headerBadge = fixture.nativeElement.querySelector('header nav button.active span');
-    const boardBadge = fixture.nativeElement.querySelector('.view-tabs button.active span');
+    const headerBadge = fixture.nativeElement.querySelector('header nav a[href="/surebet"] span');
     const resultCount = fixture.nativeElement.querySelector('.result-summary strong');
-    expect(headerBadge?.textContent?.trim()).toBe(expected);
-    expect(boardBadge?.textContent?.trim()).toBe(expected);
+    expect(headerBadge).toBeNull();
     expect(resultCount?.textContent?.trim()).toBe(expected);
+  });
+
+  it('keeps global statistics out of navigation', () => {
+    expect(fixture.nativeElement.querySelector('header nav a[href="/statistika"]')).toBeNull();
+  });
+
+  it('keeps valuebet and middlebet as separate navigation pages', () => {
+    expect(fixture.nativeElement.querySelector('header nav a[href="/valuebet"]')?.textContent).toContain('Valuebet');
+    expect(fixture.nativeElement.querySelector('header nav a[href="/middlebet"]')?.textContent).toContain('Middlebet');
+  });
+
+  it('rejects handicap surebets whose exact boundaries do not match', () => {
+    fixture.componentInstance.marketView.set('surebets');
+    fixture.componentInstance.setScope('prematch');
+    snapshot.set({
+      ...PREVIEW_SNAPSHOT,
+      opportunities: [{
+        ...PREVIEW_SNAPSHOT.opportunities[1],
+        market: 'Hendikep gemova', line: -2.5,
+        legs: [
+          { ...PREVIEW_SNAPSHOT.opportunities[1].legs[0], line: -2.5 },
+          { ...PREVIEW_SNAPSHOT.opportunities[1].legs[1], line: -3.5 },
+        ],
+      }],
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.opportunities()).toHaveLength(0);
+    expect(fixture.nativeElement.querySelectorAll('.surebet-card')).toHaveLength(0);
   });
 
   it('separates same-market and cross-market opportunities', () => {
@@ -187,6 +218,7 @@ describe('Dashboard', () => {
   });
 
   it('filters the best odds board and opens comparisons', () => {
+    fixture.componentInstance.setScope('live');
     fixture.componentInstance.market.set('FT.OU');
     fixture.detectChanges();
     const cards = fixture.nativeElement.querySelectorAll('.event-card');
@@ -196,7 +228,30 @@ describe('Dashboard', () => {
     expect(api.openComparison).toHaveBeenCalled();
   });
 
+  it('shows only winning cells by default and exposes every bookmaker on request', () => {
+    const market = {
+      id: 'market', label: 'Konačan ishod', marketKey: 'FT.1X2', period: 'FT', line: null,
+      outcomes: [
+        { label: '1', offers: [
+          { bookmaker: 'alpha', odds: 2.2, observedAt: '', best: true },
+          { bookmaker: 'beta', odds: 2.1, observedAt: '', best: false },
+        ] },
+        { label: '2', offers: [
+          { bookmaker: 'alpha', odds: 3.0, observedAt: '', best: false },
+          { bookmaker: 'beta', odds: 3.2, observedAt: '', best: true },
+        ] },
+      ],
+    };
+
+    expect(fixture.componentInstance.comparisonBookmakers(market)).toEqual(['alpha', 'beta']);
+    expect(fixture.componentInstance.comparisonOffer(market.outcomes[0], 'beta')).toBeNull();
+    fixture.componentInstance.comparisonOddsView.set('all');
+    expect(fixture.componentInstance.comparisonOffer(market.outcomes[0], 'beta')?.odds).toBe(2.1);
+  });
+
   it('keeps the full market catalog in one compact selector', () => {
+    fixture.componentInstance.setScope('live');
+    fixture.detectChanges();
     const select = fixture.nativeElement.querySelector('.market-select select') as HTMLSelectElement;
     expect([...select.options].map((option) => option.value)).toContain('FT.OU');
 
@@ -215,6 +270,34 @@ describe('Dashboard', () => {
     expect(fixture.nativeElement.querySelector('.bookmaker-section select')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.time-section select')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.filters .filter-buttons')).toBeNull();
+  });
+
+  it('groups every esports subtype into one separate Esports category', () => {
+    const base = PREVIEW_SNAPSHOT.bestOdds[0];
+    snapshot.set({
+      ...PREVIEW_SNAPSHOT,
+      bestOdds: [
+        { ...base, id: 'es-football', sport: 'esports_football' },
+        { ...base, id: 'es-basketball', matchId: 'es-2', sport: 'esports_basketball' },
+        { ...base, id: 'football', matchId: 'football', sport: 'football' },
+      ],
+    });
+    fixture.componentInstance.setScope(base.scope);
+    fixture.componentInstance.setTimeWindow('all');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.sports()).toContain('esports');
+    expect(fixture.componentInstance.sports()).not.toContain('esports_football');
+    fixture.componentInstance.setSport('esports');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.bestOdds()).toHaveLength(2);
+    expect(fixture.nativeElement.textContent).toContain('Esports');
+  });
+
+  it('loads cached club statistics only when its match tab is selected', () => {
+    api.loadComparisonStatistics.mockClear();
+    fixture.componentInstance.setComparisonTab('statistics');
+    expect(api.loadComparisonStatistics).toHaveBeenCalledOnce();
   });
 
   it('filters bookmaker jurisdictions with flag checkboxes and keeps one selected', () => {

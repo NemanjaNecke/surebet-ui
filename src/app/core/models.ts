@@ -35,6 +35,42 @@ export interface SurebetOpportunity {
   liveState: LiveMatchState | null;
 }
 
+export interface ValueBetOpportunity {
+  id: string;
+  matchId: string;
+  sport: string;
+  fixture: string;
+  league: string;
+  kickoff: string;
+  market: string;
+  period: string;
+  line: number | null;
+  outcome: string;
+  bookmaker: string;
+  odds: number;
+  fairOdds: number;
+  fairProbability: number;
+  expectedValue: number;
+  referenceBookmakers: number;
+  ageSeconds: number;
+}
+
+export interface MiddleBetOpportunity {
+  id: string;
+  matchId: string;
+  sport: string;
+  fixture: string;
+  league: string;
+  kickoff: string;
+  market: string;
+  period: string;
+  gap: number;
+  hitRoi: number;
+  missRoi: number;
+  ageSeconds: number;
+  legs: SurebetLeg[];
+}
+
 export interface BestOddsSelection {
   label: string;
   bookmaker: string;
@@ -65,6 +101,7 @@ export interface MatchOffer {
   odds: number;
   observedAt: string;
   best: boolean;
+  sourceMatchId?: string | null;
 }
 
 export interface MatchOutcomeOffers {
@@ -87,6 +124,59 @@ export interface MatchComparison {
   league: string;
   kickoff: string;
   markets: MatchMarketOffers[];
+}
+
+export interface TeamRecentMatch {
+  id: string;
+  home: string;
+  away: string;
+  home_score: number | null;
+  away_score: number | null;
+  winner: 'home' | 'away' | null;
+  kickoff_utc: string | null;
+}
+
+export interface TeamStanding {
+  position: number | null;
+  played: number | null;
+  wins: number | null;
+  draws: number | null;
+  losses: number | null;
+  goals_for: number | null;
+  goals_against: number | null;
+  goal_difference: number | null;
+  points: number | null;
+}
+
+export interface TeamStatisticsSide {
+  id: string;
+  name: string;
+  short_name: string;
+  manager: string | null;
+  standing: TeamStanding | null;
+  last_five: {
+    played: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    goals_for: number;
+    goals_against: number;
+    form: Array<'W' | 'D' | 'L'>;
+    recent: TeamRecentMatch[];
+  };
+}
+
+export interface MatchTeamStatistics {
+  provider: string;
+  updated_at: string;
+  source_match_id: string;
+  provider_match_id: string;
+  competition: string;
+  season: string | null;
+  round: number | null;
+  stadium: { name: string | null; city: string | null; capacity: string | null } | null;
+  teams: { home: TeamStatisticsSide; away: TeamStatisticsSide };
+  head_to_head: TeamRecentMatch[];
 }
 
 export interface BookmakerHealth {
@@ -139,6 +229,8 @@ export interface TrendPoint {
 
 export interface DashboardSnapshot {
   opportunities: SurebetOpportunity[];
+  valuebets: ValueBetOpportunity[];
+  middlebets: MiddleBetOpportunity[];
   bestOdds: BestOddsMarket[];
   bookmakers: BookmakerHealth[];
   trend: TrendPoint[];

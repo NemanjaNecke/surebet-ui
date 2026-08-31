@@ -1,4 +1,4 @@
-# SureEdge odds portal
+# KvotaRadar odds portal
 
 Angular 21 frontend for the Surebet FastAPI service. The portal is designed for end users rather
 than scraper administration.
@@ -8,8 +8,10 @@ It provides:
 - live and prematch best-odds comparison;
 - sport, market, time, bookmaker, league, and team search;
 - live surebets across 1X2, two-way, double-chance, totals, and BTTS markets;
-- prematch 1X2 and double-chance surebets;
+- prematch surebets across every normalized complementary market and exact line;
 - a match drawer containing every available bookmaker offer;
+- a daily cached club-statistics tab with form, standings, managers, venue, and H2H;
+- a separate Esports category covering every canonical esports subtype;
 - an exact surebet stake split and guaranteed-return calculator;
 - Auth0 login and bearer-token attachment for protected API routes;
 - a clearly marked preview mode when authenticated data is unavailable.

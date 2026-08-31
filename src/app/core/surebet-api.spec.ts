@@ -59,6 +59,26 @@ describe('SurebetApi', () => {
         ] },
       ],
     });
+    http.expectOne((request) => request.url.endsWith('/valuebets/prematch')).flush({
+      count: 1,
+      items: [{
+        match_id: 'match-2', sport: 'football', home: 'Home', away: 'Away', league: 'League',
+        kickoff_utc: now, market: 'FT.1X2', period: 'FT', line: null, outcome: '1',
+        bookmaker: 'Alpha', price: 3.4, fair_odds: 3.1, fair_probability: 0.3226,
+        expected_value: 0.0968, reference_bookmakers: 2, observed_at: now,
+      }],
+    });
+    http.expectOne((request) => request.url.endsWith('/middlebets/prematch')).flush({
+      count: 1,
+      items: [{
+        match_id: 'match-2', sport: 'football', home: 'Home', away: 'Away', league: 'League',
+        kickoff_utc: now, market: 'FT.TOTAL', period: 'FT', middle_gap: 0.5,
+        hit_roi: 0.91, miss_roi: -0.045, observed_at: now, legs: [
+          { outcome: 'OVER', bookmaker: 'Alpha', price: 2.1, line: 2.5, observed_at: now },
+          { outcome: 'UNDER', bookmaker: 'Beta', price: 2.0, line: 3.0, observed_at: now },
+        ],
+      }],
+    });
     http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({ latest_snapshot: { Alpha: now }, recent_normalized_counts: { Alpha: 18 } });
     http.expectOne((request) => request.url.endsWith('/bookmakers')).flush({ items: [] });
 
@@ -76,6 +96,8 @@ describe('SurebetApi', () => {
       kind: 'cross-market', pair: '1X vs 2', market: 'Dupla šansa',
     });
     expect(api.snapshot().opportunities[0].kind).toBe('same-market');
+    expect(api.snapshot().valuebets[0]).toMatchObject({ expectedValue: 9.68, fairProbability: 32.26 });
+    expect(api.snapshot().middlebets[0]).toMatchObject({ gap: 0.5, hitRoi: 91, missRoi: -4.5 });
     expect(api.snapshot().bookmakers[0].events).toBe(18);
     expect(api.snapshot().liveEvents).toBe(907);
     expect(api.snapshot().prematchEvents).toBe(1846);
@@ -104,15 +126,9 @@ describe('SurebetApi', () => {
       request.url.endsWith('/odds/prematch/best') && request.params.get('history_only') === 'true')
       .flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
-    http.expectOne((request) => request.url.endsWith('/surebets/prematch')).flush(
-      {}, { status: 404, statusText: 'Not Found' },
-    );
-    http.expectOne((request) => request.url.endsWith('/surebets/prematch/1x2')).flush({
-      items: [], pagination: { limit: 50, offset: 0, count: 0, total: 0 },
-    });
-    http.expectOne((request) => request.url.endsWith('/surebets/prematch/dc')).flush({
-      items: [], pagination: { limit: 50, offset: 0, count: 0, total: 0 },
-    });
+    http.expectOne((request) => request.url.endsWith('/surebets/prematch')).flush({ count: 0, items: [] });
+    http.expectOne((request) => request.url.endsWith('/valuebets/prematch')).flush({ count: 0, items: [] });
+    http.expectOne((request) => request.url.endsWith('/middlebets/prematch')).flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/bookmakers/health')).flush({});
     http.expectOne((request) => request.url.endsWith('/bookmakers')).flush({ items: [] });
     expect(api.mode()).toBe('live');

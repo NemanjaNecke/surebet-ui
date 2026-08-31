@@ -1,4 +1,4 @@
-window.__SUREEDGE_CONFIG__ = {
+window.__KVOTARADAR_CONFIG__ = {
   apiBaseUrl: 'https://api.kvotaradar.online/api/v1',
   auth: {
     domain: 'dev-sj137jrezlkzv1dx.us.auth0.com',

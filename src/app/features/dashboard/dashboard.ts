@@ -1,8 +1,8 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
-import { BestOddsMarket, OddsScope, SurebetKind, SurebetOpportunity } from '../../core/models';
+import { BestOddsMarket, MatchMarketOffers, MatchOutcomeOffers, OddsScope, SurebetKind, SurebetOpportunity } from '../../core/models';
 import { Account } from '../../core/account';
 import { RealtimeUpdates } from '../../core/realtime-updates';
 import { Session } from '../../core/session';
@@ -12,6 +12,9 @@ import { TeamLogos } from '../../core/team-logos';
 type OpportunityKindFilter = 'all' | SurebetKind;
 type PrematchTimeWindow = 'today' | '1h' | '3h' | 'tomorrow' | '3d' | 'all';
 type RegionCode = 'RS' | 'BA';
+type DashboardPage = 'prematch' | 'live' | 'surebet' | 'valuebet' | 'middlebet';
+type ComparisonTab = 'odds' | 'statistics';
+type MarketView = 'odds' | 'surebets' | 'valuebets' | 'middlebets';
 
 @Component({
   selector: 'app-dashboard',
@@ -21,6 +24,8 @@ type RegionCode = 'RS' | 'BA';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Dashboard {
+  private readonly route = inject(ActivatedRoute);
+  readonly pageMode = (this.route.snapshot.data['page'] ?? 'prematch') as DashboardPage;
   readonly api = inject(SurebetApi);
   readonly session = inject(Session);
   readonly account = inject(Account);
@@ -31,13 +36,19 @@ export class Dashboard {
   readonly suggestionsOpen = signal(false);
   readonly market = signal('all');
   readonly sport = signal('all');
-  readonly scope = signal<OddsScope>('live');
+  readonly scope = signal<OddsScope>(this.pageMode === 'live' ? 'live' : 'prematch');
   readonly bookmaker = signal('');
   readonly countries = signal<ReadonlySet<RegionCode>>(new Set<RegionCode>(['RS', 'BA']));
   readonly timeWindow = signal<PrematchTimeWindow>('today');
   readonly opportunityKind = signal<OpportunityKindFilter>('all');
-  readonly marketView = signal<'odds' | 'surebets'>('odds');
+  readonly marketView = signal<MarketView>(
+    this.pageMode === 'surebet' ? 'surebets'
+      : this.pageMode === 'valuebet' ? 'valuebets'
+        : this.pageMode === 'middlebet' ? 'middlebets' : 'odds',
+  );
   readonly selectedOpportunity = signal<SurebetOpportunity | null>(null);
+  readonly comparisonTab = signal<ComparisonTab>('odds');
+  readonly comparisonOddsView = signal<'best' | 'all'>('best');
   readonly stake = signal(100);
   readonly mobileFiltersOpen = signal(false);
   readonly page = signal(1);
@@ -49,9 +60,10 @@ export class Dashboard {
       ? this.knownMarkets()
         .filter((item) => item.scope === this.scope())
         .map(({ key, label }) => ({ key, label }))
-      : [...new Set(this.api.snapshot().opportunities
-        .filter((item) => item.scope === this.scope())
-        .map((item) => item.market))]
+      : [...new Set((this.marketView() === 'surebets'
+        ? this.api.snapshot().opportunities.filter((item) => item.scope === this.scope())
+        : this.marketView() === 'valuebets' ? this.api.snapshot().valuebets
+          : this.api.snapshot().middlebets).map((item) => item.market))]
         .sort()
         .map((key) => ({ key, label: this.marketName(key) }))),
   ]);
@@ -68,7 +80,13 @@ export class Dashboard {
 
   readonly sports = computed(() => [
     'all',
-    ...new Set(this.api.snapshot().bestOdds.map((item) => item.sport.trim()).filter(Boolean)),
+    ...[...new Set([
+      ...this.api.snapshot().bestOdds.map((item) => item.sport),
+      ...this.api.snapshot().valuebets.map((item) => item.sport),
+      ...this.api.snapshot().middlebets.map((item) => item.sport),
+    ]
+      .map((item) => this.sportCategory(item))
+      .filter(Boolean))].sort(),
   ]);
 
   readonly bookmakers = computed(() => {
@@ -86,9 +104,10 @@ export class Dashboard {
     const query = this.search().trim().toLocaleLowerCase();
     const selectedCountries = this.countries();
     return this.api.snapshot().opportunities.filter((item) => {
+      if (!this.hasExactSurebetTerms(item)) return false;
       const marketMatches = this.market() === 'all' || item.market.toLocaleLowerCase() === this.market().toLocaleLowerCase();
       const scopeMatches = item.scope === this.scope();
-      const sportMatches = this.sport() === 'all' || this.sportForOpportunity(item) === this.sportName(this.sport());
+      const sportMatches = this.sport() === 'all' || this.matchesSport(this.sportForOpportunity(item), this.sport());
       const bookmakerMatches = !this.bookmaker() || item.legs.some((leg) => leg.bookmaker === this.bookmaker());
       const timeMatches = this.matchesTimeWindow(item.kickoff, item.ageSeconds, item.scope);
       const kindMatches = this.opportunityKind() === 'all' || item.kind === this.opportunityKind();
@@ -112,7 +131,7 @@ export class Dashboard {
       }),
     })).filter((item) => {
       const marketMatches = this.market() === 'all' || item.marketKey.toLocaleLowerCase() === this.market().toLocaleLowerCase();
-      const sportMatches = this.sport() === 'all' || item.sport.toLocaleLowerCase() === this.sport().toLocaleLowerCase();
+      const sportMatches = this.sport() === 'all' || this.matchesSport(item.sport, this.sport());
       const scopeMatches = item.scope === this.scope();
       const bookmakerMatches = !this.bookmaker() || item.selections.some((selection) => selection.bookmaker === this.bookmaker());
       const timeMatches = this.matchesTimeWindow(item.kickoff, item.ageSeconds, item.scope);
@@ -162,10 +181,43 @@ export class Dashboard {
     return this.opportunities().slice(start, start + this.pageSize());
   });
 
+  readonly valuebets = computed(() => {
+    const query = this.search().trim().toLocaleLowerCase();
+    return this.api.snapshot().valuebets.filter((item) =>
+      (this.market() === 'all' || item.market.toLocaleLowerCase() === this.market().toLocaleLowerCase())
+      && (this.sport() === 'all' || this.matchesSport(item.sport, this.sport()))
+      && (!this.bookmaker() || item.bookmaker === this.bookmaker())
+      && this.matchesTimeWindow(item.kickoff, item.ageSeconds, 'prematch')
+      && (!query || `${item.fixture} ${item.league} ${item.market} ${this.displayName(item.bookmaker)}`.toLocaleLowerCase().includes(query)),
+    );
+  });
+
+  readonly middlebets = computed(() => {
+    const query = this.search().trim().toLocaleLowerCase();
+    return this.api.snapshot().middlebets.filter((item) =>
+      (this.market() === 'all' || item.market.toLocaleLowerCase() === this.market().toLocaleLowerCase())
+      && (this.sport() === 'all' || this.matchesSport(item.sport, this.sport()))
+      && (!this.bookmaker() || item.legs.some((leg) => leg.bookmaker === this.bookmaker()))
+      && this.matchesTimeWindow(item.kickoff, item.ageSeconds, 'prematch')
+      && (!query || `${item.fixture} ${item.league} ${item.market} ${item.legs.map((leg) => this.displayName(leg.bookmaker)).join(' ')}`.toLocaleLowerCase().includes(query)),
+    );
+  });
+
+  readonly pagedValuebets = computed(() => {
+    const start = (this.page() - 1) * this.pageSize();
+    return this.valuebets().slice(start, start + this.pageSize());
+  });
+
+  readonly pagedMiddlebets = computed(() => {
+    const start = (this.page() - 1) * this.pageSize();
+    return this.middlebets().slice(start, start + this.pageSize());
+  });
+
   readonly resultCount = computed(() =>
     this.marketView() === 'odds'
       ? this.scope() === 'prematch' ? this.api.prematchTotal() : this.bestOdds().length
-      : this.opportunities().length,
+      : this.marketView() === 'surebets' ? this.opportunities().length
+        : this.marketView() === 'valuebets' ? this.valuebets().length : this.middlebets().length,
   );
 
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.resultCount() / this.pageSize())));
@@ -200,6 +252,21 @@ export class Dashboard {
 
   readonly guaranteedReturn = computed(() => this.calculatorRows()[0]?.return ?? 0);
   readonly guaranteedProfit = computed(() => this.guaranteedReturn() - this.stake());
+  readonly pageHeading = this.pageMode === 'prematch'
+    ? 'Ponuda pre meča'
+    : this.pageMode === 'live'
+      ? 'Ponuda uživo'
+      : this.pageMode === 'surebet' ? 'Provereni surebetovi'
+        : this.pageMode === 'valuebet' ? 'Valuebet prilike' : 'Middlebet prilike';
+  readonly pageDescription = this.pageMode === 'prematch'
+    ? 'Sve dostupne kvote pre početka meča, objedinjene po događaju i tačnoj granici.'
+    : this.pageMode === 'live'
+      ? 'Aktuelne kvote, rezultat, period i vreme igre iz povezanih kladionica.'
+      : this.pageMode === 'surebet'
+        ? 'Proverene kombinacije sa identičnim tržištem, periodom i granicom.'
+        : this.pageMode === 'valuebet'
+          ? 'Kvote sa pozitivnom očekivanom vrednošću prema tržišnom konsenzusu drugih kladionica.'
+          : 'Preklapajuće granice iz različitih kladionica, sa prikazom dobiti i rizika.';
   readonly currentLoading = computed(() =>
     this.scope() === 'prematch' ? this.api.prematchLoading() : this.api.loading(),
   );
@@ -275,12 +342,12 @@ export class Dashboard {
     this.stake.set(Number.isFinite(parsed) ? Math.max(1, Math.min(parsed, 1_000_000)) : 100);
   }
 
-  selectView(view: 'odds' | 'surebets'): void {
+  selectView(view: MarketView): void {
     this.marketView.set(view);
     this.market.set('all');
     this.mobileFiltersOpen.set(false);
     this.page.set(1);
-    if (view === 'surebets') this.api.refresh(this.scope());
+    if (view !== 'odds') this.api.refresh(view === 'surebets' ? this.scope() : 'prematch');
   }
 
   setScope(scope: OddsScope): void {
@@ -345,6 +412,15 @@ export class Dashboard {
     return serbia.has(normalized) ? 'RS' : bosnia.has(normalized) ? 'BA' : null;
   }
 
+  private hasExactSurebetTerms(item: SurebetOpportunity): boolean {
+    const market = item.market.toLocaleLowerCase();
+    const requiresLine = ['handicap', 'hendikep', 'spread', 'total', 'ukupno', 'više/manje', 'vise/manje']
+      .some((token) => market.includes(token));
+    if (requiresLine && (item.line === null || item.legs.some((leg) => leg.line === null))) return false;
+    if (item.line !== null && item.legs.some((leg) => leg.line === null || Math.abs(leg.line - item.line!) > 1e-9)) return false;
+    return Boolean(item.fixture && item.league && (item.kickoff || item.liveState));
+  }
+
   setTimeWindow(value: PrematchTimeWindow): void {
     this.timeWindow.set(value);
     this.page.set(1);
@@ -388,7 +464,7 @@ export class Dashboard {
     const matching = this.api.snapshot().bestOdds.find((candidate) =>
       candidate.scope === item.scope && candidate.fixture === item.fixture,
     );
-    return matching ? this.sportName(matching.sport) : '';
+    return matching?.sport ?? '';
   }
 
   setPageSize(value: string): void {
@@ -426,7 +502,28 @@ export class Dashboard {
   }
 
   openComparison(item: BestOddsMarket): void {
+    this.comparisonTab.set('odds');
+    this.comparisonOddsView.set('best');
     this.api.openComparison(item);
+  }
+
+  setComparisonTab(tab: ComparisonTab): void {
+    this.comparisonTab.set(tab);
+    if (tab === 'statistics') this.api.loadComparisonStatistics();
+  }
+
+  comparisonBookmakers(market: MatchMarketOffers): string[] {
+    const offers = market.outcomes.flatMap((outcome) => outcome.offers)
+      .filter((offer) => this.comparisonOddsView() === 'all' || offer.best);
+    return [...new Set(offers.map((offer) => offer.bookmaker))].sort((left, right) =>
+      this.displayName(left).localeCompare(this.displayName(right)),
+    );
+  }
+
+  comparisonOffer(outcome: MatchOutcomeOffers, bookmaker: string) {
+    return outcome.offers.find((offer) =>
+      offer.bookmaker === bookmaker && (this.comparisonOddsView() === 'all' || offer.best),
+    ) ?? null;
   }
 
   closeDrawer(): void {
@@ -439,13 +536,23 @@ export class Dashboard {
   }
 
   sportName(value: string): string {
+    if (this.sportCategory(value) === 'esports') return 'Esports';
     const normalized = value.trim().toLocaleLowerCase().replaceAll('_', ' ');
     return ({
       football: 'Fudbal', soccer: 'Fudbal', basketball: 'Košarka', tennis: 'Tenis',
       handball: 'Rukomet', volleyball: 'Odbojka', 'ice hockey': 'Hokej na ledu',
       hockey: 'Hokej', baseball: 'Bejzbol', 'table tennis': 'Stoni tenis',
-      futsal: 'Futsal', rugby: 'Ragbi', cricket: 'Kriket', esports: 'E-sport',
+      futsal: 'Futsal', rugby: 'Ragbi', cricket: 'Kriket', esports: 'Esports',
     } as Record<string, string>)[normalized] ?? this.displayName(value);
+  }
+
+  private sportCategory(value: string): string {
+    const normalized = value.trim().toLocaleLowerCase();
+    return normalized === 'esports' || normalized.startsWith('esports_') ? 'esports' : normalized;
+  }
+
+  private matchesSport(value: string, selected: string): boolean {
+    return this.sportCategory(value) === this.sportCategory(selected);
   }
 
   marketName(value: string): string {

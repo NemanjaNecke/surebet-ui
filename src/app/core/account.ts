@@ -7,7 +7,7 @@ import { AccountProfile } from './models';
 import { runtimeConfig } from './runtime-config';
 import { Session } from './session';
 
-const ACCOUNT_CACHE_KEY = 'sureedge.account.v1';
+const ACCOUNT_CACHE_KEY = 'kvotaradar.account.v1';
 
 function readCachedProfile(): AccountProfile | null {
   try {

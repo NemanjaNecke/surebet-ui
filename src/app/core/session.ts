@@ -48,7 +48,7 @@ export class Session {
   }
 
   logout(): void {
-    sessionStorage.removeItem('sureedge.dashboard.v1');
+    sessionStorage.removeItem('kvotaradar.dashboard.v1');
     this.auth?.logout({ logoutParams: { returnTo: window.location.origin } });
   }
 }

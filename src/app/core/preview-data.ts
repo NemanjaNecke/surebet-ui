@@ -5,6 +5,8 @@ const now = () => new Date().toISOString();
 export const PREVIEW_SNAPSHOT: DashboardSnapshot = {
   liveEvents: 2,
   prematchEvents: 1,
+  valuebets: [],
+  middlebets: [],
   bestOdds: [
     {
       id: 'preview-odds-1', matchId: 'preview-match-1', sport: 'Football', market: '1X2',

@@ -1,4 +1,4 @@
-export interface SureEdgeRuntimeConfig {
+export interface KvotaRadarRuntimeConfig {
   apiBaseUrl: string;
   auth: {
     domain: string;
@@ -10,15 +10,15 @@ export interface SureEdgeRuntimeConfig {
 
 declare global {
   interface Window {
-    __SUREEDGE_CONFIG__?: Partial<SureEdgeRuntimeConfig> & {
-      auth?: Partial<SureEdgeRuntimeConfig['auth']>;
+    __KVOTARADAR_CONFIG__?: Partial<KvotaRadarRuntimeConfig> & {
+      auth?: Partial<KvotaRadarRuntimeConfig['auth']>;
     };
   }
 }
 
-const supplied = window.__SUREEDGE_CONFIG__;
+const supplied = window.__KVOTARADAR_CONFIG__;
 
-export const runtimeConfig: SureEdgeRuntimeConfig = {
+export const runtimeConfig: KvotaRadarRuntimeConfig = {
   apiBaseUrl: supplied?.apiBaseUrl?.replace(/\/$/, '') || '/api/v1',
   auth: {
     domain: supplied?.auth?.domain?.trim() || '',

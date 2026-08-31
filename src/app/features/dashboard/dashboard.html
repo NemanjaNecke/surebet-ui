@@ -1,14 +1,15 @@
 <div class="portal-shell">
   <header class="topbar">
-    <a class="brand" href="#top" aria-label="SureEdge početna">
+    <a class="brand" routerLink="/ponuda" aria-label="KvotaRadar početna">
       <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <strong>Sure<span>Edge</span></strong>
+      <strong>Kvota<span>Radar</span></strong>
     </a>
     <nav aria-label="Glavna navigacija">
-      <button [class.active]="marketView() === 'odds'" (click)="selectView('odds')">Najbolje kvote</button>
-      <button [class.active]="marketView() === 'surebets'" (click)="selectView('surebets')">
-        Surebetovi <span>{{ opportunities().length }}</span>
-      </button>
+      <a routerLink="/ponuda" [class.active]="pageMode === 'prematch'">Ponuda</a>
+      <a routerLink="/uzivo" [class.active]="pageMode === 'live'">Uživo</a>
+      <a routerLink="/surebet" [class.active]="pageMode === 'surebet'">Surebet</a>
+      <a routerLink="/middlebet" [class.active]="pageMode === 'middlebet'">Middlebet</a>
+      <a routerLink="/valuebet" [class.active]="pageMode === 'valuebet'">Valuebet</a>
       <a routerLink="/promocije">Promocije</a>
     </nav>
     <div class="header-actions">
@@ -103,28 +104,20 @@
       <div class="board-heading">
         <div>
           <p class="section-label">REGIONALNI MONITOR KVOTA</p>
-          <h2>{{ marketView() === 'odds' ? 'Najbolje kvote trenutno' : 'Provereni surebetovi' }}</h2>
-          <p>
-            {{ marketView() === 'odds'
-              ? 'Najviša dostupna kvota za svaki ishod kod svih povezanih kladionica.'
-              : 'Pozitivan povrat raspoređen između najmanje dve različite kladionice.' }}
-          </p>
+          <h2>{{ pageHeading }}</h2>
+          <p>{{ pageDescription }}</p>
         </div>
       </div>
 
       <div class="control-row">
-        <div class="view-tabs" role="tablist" aria-label="Vrsta prikaza">
-          <button role="tab" [attr.aria-selected]="marketView() === 'odds'" [class.active]="marketView() === 'odds'" (click)="selectView('odds')">
-            Najbolje kvote <span>{{ bestOdds().length }}</span>
-          </button>
-          <button role="tab" [attr.aria-selected]="marketView() === 'surebets'" [class.active]="marketView() === 'surebets'" (click)="selectView('surebets')">
-            Surebetovi <span>{{ opportunities().length }}</span>
-          </button>
-        </div>
-        <div class="scope-tabs" role="group" aria-label="Period ponude">
-          <button [class.active]="scope() === 'live'" (click)="setScope('live')"><i></i> Uživo</button>
-          <button [class.active]="scope() === 'prematch'" (click)="setScope('prematch')">Pre meča</button>
-        </div>
+        @if (pageMode === 'surebet') {
+          <div class="scope-tabs" role="group" aria-label="Period ponude">
+            <button [class.active]="scope() === 'live'" (click)="setScope('live')"><i></i> Uživo</button>
+            <button [class.active]="scope() === 'prematch'" (click)="setScope('prematch')">Pre meča</button>
+          </div>
+        } @else {
+          <strong class="fixed-scope">{{ pageMode === 'live' ? '● Kvote uživo' : 'Kvote pre meča' }}</strong>
+        }
         <button class="filter-toggle" (click)="mobileFiltersOpen.set(!mobileFiltersOpen())">Filteri</button>
       </div>
 
@@ -204,9 +197,10 @@
                 <span>{{ sportName(item.sport) }}</span>
                 @if (item.liveState; as state) {
                   <time>{{ state.homeScore }}:{{ state.awayScore }} · {{ livePeriodName(state.period) }} · {{ state.clockMinute | number: '1.0-0' }}'</time>
-                } @else if (item.kickoff) {
-                  <time>{{ item.kickoff | date: 'dd.MM. · HH:mm' }}</time>
-                } @else {
+                }
+                @if (item.kickoff) {
+                  <time>Početak {{ item.kickoff | date: 'dd.MM. · HH:mm' }}</time>
+                } @else if (!item.liveState) {
                   <time>Vreme nije dostupno</time>
                 }
               </div>
@@ -239,7 +233,7 @@
             <div class="empty-state"><strong>Nema rezultata za izabrane filtere</strong><span>Promenite tržište, sport ili pojam pretrage.</span></div>
           }
         </div>
-      } @else {
+      } @else if (marketView() === 'surebets') {
         <div class="surebet-list">
           @for (item of pagedOpportunities(); track item.id) {
             <article class="surebet-card" [class.cross-market]="item.kind === 'cross-market'">
@@ -267,8 +261,9 @@
                   {{ marketName(item.market) }} · {{ item.period }}@if (item.line !== null) { · Granica {{ item.line }} } ·
                   @if (item.liveState; as state) {
                     {{ state.homeScore }}:{{ state.awayScore }} · {{ livePeriodName(state.period) }} · {{ state.clockMinute | number: '1.0-0' }}'
+                    @if (item.kickoff) { · Početak {{ item.kickoff | date: 'dd.MM. · HH:mm' }} }
                   } @else if (item.kickoff) {
-                    {{ item.kickoff | date: 'dd.MM. · HH:mm' }}
+                    Početak {{ item.kickoff | date: 'dd.MM. · HH:mm' }}
                   } @else {
                     Vreme nije dostupno
                   }
@@ -285,6 +280,42 @@
               <span>@if (scope() === 'prematch') { Podaci pre meča se proveravaju nakon svakog skeniranja. } @else { Lista se automatski osvežava. }</span>
               @if (bestOdds().length) { <button class="empty-action" (click)="selectView('odds')">Prikaži najbolje kvote</button> }
             </div>
+          }
+        </div>
+      } @else if (marketView() === 'valuebets') {
+        <div class="surebet-list opportunity-list">
+          @for (item of pagedValuebets(); track item.id) {
+            <article class="surebet-card value-card">
+              <div class="roi-block"><span>Očekivana vrednost</span><strong>+{{ item.expectedValue | number: '1.2-2' }}%</strong><small>Fer kvota {{ item.fairOdds | number: '1.2-2' }}</small></div>
+              <div class="surebet-event">
+                <p>{{ item.league }}</p><h3>{{ item.fixture }}</h3>
+                <span>{{ item.market }} · {{ item.period }}@if (item.line !== null) { · Granica {{ item.line }} } · {{ item.kickoff | date: 'dd.MM. · HH:mm' }}</span>
+              </div>
+              <div class="surebet-legs"><div><span>{{ item.outcome }}</span><small>{{ countryFlag(countryForBookmaker(item.bookmaker)) }} {{ displayName(item.bookmaker) }}</small><strong>{{ item.odds | number: '1.2-2' }}</strong></div></div>
+              <div class="value-details"><span>Fer verovatnoća</span><strong>{{ item.fairProbability | number: '1.1-1' }}%</strong><small>{{ item.referenceBookmakers }} drugih kladionica u proceni</small></div>
+            </article>
+          } @empty {
+            <div class="empty-state"><strong>Trenutno nema valuebet prilika</strong><span>Procena se obnavlja posle svakog prematch skeniranja.</span></div>
+          }
+        </div>
+      } @else if (marketView() === 'middlebets') {
+        <div class="surebet-list opportunity-list">
+          @for (item of pagedMiddlebets(); track item.id) {
+            <article class="surebet-card middle-card">
+              <div class="roi-block"><span>Dobit ako pogodi sredinu</span><strong>+{{ item.hitRoi | number: '1.2-2' }}%</strong><small>Raspon {{ item.gap | number: '1.1-2' }}</small></div>
+              <div class="surebet-event">
+                <p>{{ item.league }}</p><h3>{{ item.fixture }}</h3>
+                <span>{{ item.market }} · {{ item.period }} · {{ item.kickoff | date: 'dd.MM. · HH:mm' }}</span>
+              </div>
+              <div class="surebet-legs">
+                @for (leg of item.legs; track leg.bookmaker + leg.label) {
+                  <div><span>{{ leg.label }} · {{ leg.line }}</span><small>{{ countryFlag(leg.country ?? countryForBookmaker(leg.bookmaker)) }} {{ displayName(leg.bookmaker) }}</small><strong>{{ leg.odds | number: '1.2-2' }}</strong></div>
+                }
+              </div>
+              <div class="value-details"><span>Ako promaši sredinu</span><strong [class.loss]="item.missRoi < 0">{{ item.missRoi | number: '1.2-2' }}%</strong><small>Dve različite kladionice i kanonske granice</small></div>
+            </article>
+          } @empty {
+            <div class="empty-state"><strong>Trenutno nema middlebet prilika</strong><span>Prikazujemo samo stvarno preklapajuće granice.</span></div>
           }
         </div>
       }
@@ -315,7 +346,7 @@
   </main>
 
   <footer class="site-footer">
-    <a class="brand" href="#top"><span class="brand-mark"><i></i><i></i><i></i></span><strong>Sure<span>Edge</span></strong></a>
+    <a class="brand" href="#top"><span class="brand-mark"><i></i><i></i><i></i></span><strong>Kvota<span>Radar</span></strong></a>
     <p>Kvote se brzo menjaju. Pre uplate proverite konačnu kvotu kod kladionice.</p>
     <span>Poslednje osveženje {{ currentUpdated() | date: 'HH:mm:ss' }}</span>
   </footer>
@@ -338,10 +369,14 @@
           </div>
         }
       </div>
-      <p class="drawer-subtitle">{{ selectedOpportunity()!.league }} · {{ marketName(selectedOpportunity()!.market) }} · {{ selectedOpportunity()!.period }}@if (selectedOpportunity()!.line !== null) { · Granica {{ selectedOpportunity()!.line }} }</p>
+      <p class="drawer-subtitle">
+        {{ selectedOpportunity()!.league }} · {{ marketName(selectedOpportunity()!.market) }} · {{ selectedOpportunity()!.period }}
+        @if (selectedOpportunity()!.line !== null) { · Granica {{ selectedOpportunity()!.line }} }
+        @if (selectedOpportunity()!.kickoff) { · {{ selectedOpportunity()!.kickoff | date: 'dd.MM.yyyy. · HH:mm' }} }
+      </p>
       <label class="stake-input"><span>Ukupan ulog</span><div><b>€</b><input #stakeInput type="number" min="1" step="10" [value]="stake()" (input)="setStake(stakeInput.value)" /></div></label>
       <div class="stake-rows">
-        @for (row of calculatorRows(); track row.label) { <div><span class="outcome">{{ row.label }}</span><div><strong>{{ displayName(row.bookmaker) }}</strong><small>Kvota {{ row.odds | number: '1.2-2' }}</small></div><b>€{{ row.stake | number: '1.2-2' }}</b></div> }
+        @for (row of calculatorRows(); track row.label) { <div><span class="outcome">{{ row.label }}@if (row.line !== null) { · {{ row.line }} }</span><div><strong>{{ displayName(row.bookmaker) }}</strong><small>Kvota {{ row.odds | number: '1.2-2' }}</small></div><b>€{{ row.stake | number: '1.2-2' }}</b></div> }
       </div>
       <div class="return-card"><div><span>Garantovani povrat</span><strong>€{{ guaranteedReturn() | number: '1.2-2' }}</strong></div><div><span>Garantovana dobit</span><strong>+€{{ guaranteedProfit() | number: '1.2-2' }}</strong></div></div>
       <p class="drawer-note">Koristite tačno prikazan ulog za svaku kladionicu i proverite da su sve kvote još dostupne.</p>
@@ -373,18 +408,106 @@
           {{ comparison.league }} · {{ comparison.kickoff | date: 'dd.MM. · HH:mm' }} ·
           <strong>{{ comparison.markets.length }} tržišta</strong>
         </p>
-        <div class="comparison-markets">
-          @for (marketItem of comparison.markets; track marketItem.id) {
-            <section><h3>{{ marketName(marketItem.label) }} <small>{{ marketItem.period }}@if (marketItem.line !== null) { · {{ marketItem.line }}}</small></h3>
-              @for (outcome of marketItem.outcomes; track outcome.label) {
-                <div class="outcome-group"><strong>{{ outcome.label }}</strong><div>
-                  @for (offer of outcome.offers; track offer.bookmaker) { <span [class.best]="offer.best"><small>{{ countryFlag(countryForBookmaker(offer.bookmaker)) }} {{ displayName(offer.bookmaker) }}</small><b>{{ offer.odds | number: '1.2-2' }}</b>@if (offer.best) { <em>Najbolja</em> }</span> }
-                </div></div>
+        <div class="comparison-tabs" role="tablist" aria-label="Detalji utakmice">
+          <button role="tab" [class.active]="comparisonTab() === 'odds'" (click)="setComparisonTab('odds')">Kvote</button>
+          <button role="tab" [class.active]="comparisonTab() === 'statistics'" (click)="setComparisonTab('statistics')">Statistika timova</button>
+        </div>
+        @if (comparisonTab() === 'odds') {
+          <div class="odds-view-toggle" role="group" aria-label="Prikaz kvota">
+            <div><strong>Prikaz kladionica</strong><small>Najbolje kvote su podrazumevano izdvojene.</small></div>
+            <button [class.active]="comparisonOddsView() === 'best'" (click)="comparisonOddsView.set('best')">Samo najbolje</button>
+            <button [class.active]="comparisonOddsView() === 'all'" (click)="comparisonOddsView.set('all')">Sve kladionice</button>
+          </div>
+          <div class="comparison-markets">
+            @for (marketItem of comparison.markets; track marketItem.id) {
+              <section>
+                <h3>{{ marketName(marketItem.label) }} <small>{{ marketItem.period }}@if (marketItem.line !== null) { · Granica {{ marketItem.line }}}</small></h3>
+                <div class="odds-matrix" [style.--bookmakers]="comparisonBookmakers(marketItem).length">
+                  <div class="matrix-row matrix-head">
+                    <strong>Ishod</strong>
+                    @for (bookmakerName of comparisonBookmakers(marketItem); track bookmakerName) {
+                      <span>{{ countryFlag(countryForBookmaker(bookmakerName)) }} {{ displayName(bookmakerName) }}</span>
+                    }
+                  </div>
+                  @for (outcome of marketItem.outcomes; track outcome.label) {
+                    <div class="matrix-row">
+                      <strong>{{ outcome.label }}</strong>
+                      @for (bookmakerName of comparisonBookmakers(marketItem); track bookmakerName) {
+                        @if (comparisonOffer(outcome, bookmakerName); as offer) {
+                          <span class="matrix-price" [class.best]="offer.best">
+                            <b>{{ offer.odds | number: '1.2-2' }}</b>
+                            @if (offer.best) { <em>Najbolja</em> }
+                          </span>
+                        } @else {
+                          <span class="matrix-price missing">—</span>
+                        }
+                      }
+                    </div>
+                  }
+                </div>
+              </section>
+            }
+          </div>
+          <p class="drawer-note">Najbolje kvote su označene. Konačnu kvotu uvek proverite kod kladionice.</p>
+        } @else if (comparisonTab() === 'statistics') {
+          @if (api.comparisonStatisticsLoading()) {
+            <div class="statistics-state"><i></i><strong>Učitavamo dnevnu statistiku timova…</strong></div>
+          } @else if (api.comparisonStatistics(); as statistics) {
+            <div class="statistics-meta">
+              <div><span>Takmičenje</span><strong>{{ statistics.competition }}</strong></div>
+              <div><span>Sezona</span><strong>{{ statistics.season || '—' }}</strong></div>
+              <div><span>Stadion</span><strong>{{ statistics.stadium?.name || '—' }}@if (statistics.stadium?.city) { · {{ statistics.stadium?.city }} }</strong></div>
+              <div><span>Osveženo</span><strong>{{ statistics.updated_at | date: 'dd.MM. · HH:mm' }}</strong></div>
+            </div>
+            <div class="team-statistics detailed">
+              @for (entry of [statistics.teams.home, statistics.teams.away]; track entry.id; let index = $index) {
+                <section class="team-stat-card">
+                  <span class="team-emblem" aria-hidden="true">
+                    <span>{{ teamInitials(entry.name) }}</span>
+                    @if (teamLogoUrl(entry.name); as logo) {
+                      <img [src]="logo" [alt]="entry.name + ' grb'" loading="lazy" decoding="async" referrerpolicy="no-referrer" (error)="hideBrokenImage($event)" />
+                    }
+                  </span>
+                  <small>{{ index === 0 ? 'Domaćin' : 'Gost' }}</small>
+                  <strong>{{ entry.name }}</strong>
+                  @if (entry.manager) { <span class="manager">Trener · {{ entry.manager }}</span> }
+                  <div class="form-badges" aria-label="Forma u poslednjih pet utakmica">
+                    @for (result of entry.last_five.form; track $index) {
+                      <b [class.win]="result === 'W'" [class.draw]="result === 'D'" [class.loss]="result === 'L'">{{ result === 'W' ? 'P' : result === 'D' ? 'N' : 'I' }}</b>
+                    }
+                  </div>
+                  <div class="form-summary">
+                    <span><b>{{ entry.last_five.wins }}</b>P</span>
+                    <span><b>{{ entry.last_five.draws }}</b>N</span>
+                    <span><b>{{ entry.last_five.losses }}</b>I</span>
+                    <span><b>{{ entry.last_five.goals_for }}:{{ entry.last_five.goals_against }}</b>Golovi</span>
+                  </div>
+                  @if (entry.standing; as standing) {
+                    <div class="standing-row">
+                      <span>Pozicija <b>{{ standing.position ?? '—' }}</b></span>
+                      <span>Mečevi <b>{{ standing.played ?? '—' }}</b></span>
+                      <span>Bodovi <b>{{ standing.points ?? '—' }}</b></span>
+                      <span>Razlika <b>{{ standing.goal_difference ?? '—' }}</b></span>
+                    </div>
+                  }
+                </section>
+              }
+            </div>
+            <section class="h2h-card">
+              <h3>Međusobni susreti</h3>
+              @if (statistics.head_to_head.length) {
+                @for (match of statistics.head_to_head; track match.id) {
+                  <div><time>{{ match.kickoff_utc | date: 'dd.MM.yy.' }}</time><span>{{ match.home }} — {{ match.away }}</span><b>{{ match.home_score ?? '—' }}:{{ match.away_score ?? '—' }}</b></div>
+                }
+              } @else {
+                <p>Nema zabeleženih međusobnih susreta.</p>
               }
             </section>
+            <p class="drawer-note">Jedan dnevni Sportradar snapshot: forma klubova, tabela i H2H za ovaj konkretan meč.</p>
+          } @else {
+            <div class="statistics-state error"><strong>{{ api.comparisonStatisticsError() || 'Za ove timove još nema pouzdane klupske statistike.' }}</strong></div>
           }
-        </div>
-        <p class="drawer-note">Najbolje kvote su označene. Konačnu kvotu uvek proverite kod kladionice.</p>
+        }
       }
     </aside>
   }

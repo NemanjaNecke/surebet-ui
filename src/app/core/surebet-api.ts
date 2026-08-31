@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
-import { catchError, forkJoin, map, Observable, of, throwError, TimeoutError, timeout } from 'rxjs';
+import { catchError, forkJoin, map, Observable, of, TimeoutError, timeout } from 'rxjs';
 
 import {
   BestOddsMarket,
@@ -11,12 +11,14 @@ import {
   DashboardSnapshot,
   DataMode,
   MatchComparison,
+  MatchTeamStatistics,
   MatchMarketOffers,
+  MiddleBetOpportunity,
   LiveMatchState,
   OddsScope,
-  PageResponse,
   SurebetLeg,
   SurebetOpportunity,
+  ValueBetOpportunity,
 } from './models';
 import { PREVIEW_SNAPSHOT } from './preview-data';
 import { authEnabled, runtimeConfig } from './runtime-config';
@@ -30,9 +32,9 @@ const PREMATCH_PAGE_LIMIT = 12;
 const LIVE_REFRESH_MS = 60_000;
 const PREMATCH_REFRESH_MS = 120_000;
 const METADATA_REFRESH_MS = 300_000;
-const DASHBOARD_CACHE_KEY = 'sureedge.dashboard.v1';
+const DASHBOARD_CACHE_KEY = 'kvotaradar.dashboard.v1';
 const EMPTY_SNAPSHOT: DashboardSnapshot = {
-  bestOdds: [], opportunities: [], bookmakers: [], trend: [], liveEvents: 0, prematchEvents: 0,
+  bestOdds: [], opportunities: [], valuebets: [], middlebets: [], bookmakers: [], trend: [], liveEvents: 0, prematchEvents: 0,
 };
 
 interface CachedDashboardSnapshot {
@@ -47,7 +49,8 @@ function readCachedSnapshot(): CachedDashboardSnapshot | null {
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<CachedDashboardSnapshot>;
     if (value.version !== 1 || !value.snapshot || !Array.isArray(value.snapshot.bestOdds)
-      || !Array.isArray(value.snapshot.opportunities) || !Array.isArray(value.snapshot.bookmakers)) {
+      || !Array.isArray(value.snapshot.opportunities) || !Array.isArray(value.snapshot.valuebets)
+      || !Array.isArray(value.snapshot.middlebets) || !Array.isArray(value.snapshot.bookmakers)) {
       sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
       return null;
     }
@@ -79,6 +82,8 @@ export class SurebetApi {
   private prematchOpportunities: SurebetOpportunity[] = this.restored?.snapshot.opportunities.filter(
     (item) => item.scope === 'prematch',
   ) ?? [];
+  private prematchValuebets: ValueBetOpportunity[] = this.restored?.snapshot.valuebets ?? [];
+  private prematchMiddlebets: MiddleBetOpportunity[] = this.restored?.snapshot.middlebets ?? [];
   private bookmakers: BookmakerHealth[] = this.restored?.snapshot.bookmakers ?? [];
   private hasSuccessfulSnapshot = Boolean(this.restored);
   private consecutiveTransientFailures = 0;
@@ -113,6 +118,10 @@ export class SurebetApi {
   readonly comparison = signal<MatchComparison | null>(null);
   readonly comparisonLoading = signal(false);
   readonly comparisonError = signal('');
+  readonly comparisonStatistics = signal<MatchTeamStatistics | null>(null);
+  readonly comparisonStatisticsLoading = signal(false);
+  readonly comparisonStatisticsError = signal('');
+  private comparisonScope: OddsScope = 'prematch';
   readonly bookmakerCatalog = signal<BookmakerOption[]>([]);
   readonly prematchTotal = signal(this.prematchCurrentTotal);
   readonly healthyBookmakers = computed(
@@ -224,7 +233,9 @@ export class SurebetApi {
       liveSurebets: this.http
         .get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: liveParams })
         .pipe(timeout(8000)),
-      prematchSurebets: this.loadPrematchSurebets(prematchParams).pipe(timeout(8000)),
+      prematchSurebets: this.loadPrematchSurebets(this.prematchOpportunityParams()).pipe(timeout(8000)),
+      prematchValuebets: this.http.get<CollectionResponse>(`${API_ROOT}/valuebets/prematch`, { params: this.prematchOpportunityParams() }).pipe(timeout(8000)),
+      prematchMiddlebets: this.http.get<CollectionResponse>(`${API_ROOT}/middlebets/prematch`, { params: this.prematchOpportunityParams() }).pipe(timeout(8000)),
       health: this.http
         .get<Record<string, unknown>>(`${API_ROOT}/bookmakers/health`)
         .pipe(timeout(8000)),
@@ -252,6 +263,12 @@ export class SurebetApi {
           );
           this.prematchOpportunities = payload.prematchSurebets.items.map((row, index) =>
             this.toOpportunity(row, index, 'prematch'),
+          );
+          this.prematchValuebets = payload.prematchValuebets.items.map((row, index) =>
+            this.toValuebet(row, index),
+          );
+          this.prematchMiddlebets = payload.prematchMiddlebets.items.map((row, index) =>
+            this.toMiddlebet(row, index),
           );
           this.bookmakers = this.toBookmakers(payload.health);
           this.bookmakerCatalog.set(payload.catalog.items);
@@ -357,7 +374,7 @@ export class SurebetApi {
     this.prematchInFlight = true;
     if (foreground) this.prematchLoading.set(true);
     const limited = this.prematchQuery;
-    this.refreshPrematchSurebets(limited);
+    this.refreshPrematchSurebets();
     this.http.get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: limited }).pipe(
       timeout(15_000),
       map((payload) => {
@@ -417,40 +434,44 @@ export class SurebetApi {
     });
   }
 
-  private refreshPrematchSurebets(limited: HttpParams): void {
-    this.loadPrematchSurebets(limited).pipe(
-      timeout(15_000),
-      catchError(() => of(null)),
-    ).subscribe((payload) => {
+  private refreshPrematchSurebets(): void {
+    const opportunityParams = this.prematchOpportunityParams();
+    forkJoin({
+      surebets: this.loadPrematchSurebets(opportunityParams).pipe(catchError(() => of(null))),
+      valuebets: this.http.get<CollectionResponse>(`${API_ROOT}/valuebets/prematch`, { params: opportunityParams }).pipe(catchError(() => of(null))),
+      middlebets: this.http.get<CollectionResponse>(`${API_ROOT}/middlebets/prematch`, { params: opportunityParams }).pipe(catchError(() => of(null))),
+    }).pipe(timeout(15_000), catchError(() => of(null))).subscribe((payload) => {
       if (!payload) return;
-      this.prematchOpportunities = payload.items.map((row, index) =>
-        this.toOpportunity(row, index, 'prematch'),
+      if (payload.surebets) this.prematchOpportunities = payload.surebets.items.map(
+        (row, index) => this.toOpportunity(row, index, 'prematch'),
+      );
+      if (payload.valuebets) this.prematchValuebets = payload.valuebets.items.map(
+        (row, index) => this.toValuebet(row, index),
+      );
+      if (payload.middlebets) this.prematchMiddlebets = payload.middlebets.items.map(
+        (row, index) => this.toMiddlebet(row, index),
       );
       this.publishSnapshot(this.combinedSnapshot());
     });
   }
 
   private loadPrematchSurebets(params: HttpParams): Observable<CollectionResponse> {
-    return this.http.get<CollectionResponse>(`${API_ROOT}/surebets/prematch`, { params }).pipe(
-      catchError((error: HttpErrorResponse) => {
-        if (error.status !== 404) return throwError(() => error);
-        // Short deployment bridge: the current AWS image still exposes the
-        // two legacy routes. This branch disappears automatically as soon as
-        // the generic backend route is deployed.
-        return forkJoin({
-          oneXtwo: this.http.get<PageResponse>(`${API_ROOT}/surebets/prematch/1x2`, { params }),
-          doubleChance: this.http.get<PageResponse>(`${API_ROOT}/surebets/prematch/dc`, { params }),
-        }).pipe(map(({ oneXtwo, doubleChance }) => {
-          const items = [...oneXtwo.items, ...doubleChance.items];
-          return { items, count: items.length, total: items.length };
-        }));
-      }),
-    );
+    return this.http.get<CollectionResponse>(`${API_ROOT}/surebets/prematch`, { params });
+  }
+
+  private prematchOpportunityParams(): HttpParams {
+    return new HttpParams()
+      .set('limit', 250)
+      .set('countries', this.countryCodes.join(','));
   }
 
   openComparison(item: BestOddsMarket): void {
     this.comparison.set(null);
     this.comparisonError.set('');
+    this.comparisonStatistics.set(null);
+    this.comparisonStatisticsError.set('');
+    this.comparisonStatisticsLoading.set(false);
+    this.comparisonScope = item.scope;
     if (this.mode() === 'preview' || this.mode() === 'offline') {
       this.comparison.set(this.previewComparison(item));
       return;
@@ -478,6 +499,38 @@ export class SurebetApi {
   closeComparison(): void {
     this.comparison.set(null);
     this.comparisonError.set('');
+    this.comparisonStatistics.set(null);
+    this.comparisonStatisticsError.set('');
+    this.comparisonStatisticsLoading.set(false);
+  }
+
+  loadComparisonStatistics(): void {
+    const comparison = this.comparison();
+    if (!comparison || this.comparisonStatistics() || this.comparisonStatisticsLoading()) return;
+    if (this.mode() === 'preview' || this.mode() === 'offline') {
+      this.comparisonStatisticsError.set('Statistika timova nije dostupna u demo prikazu.');
+      return;
+    }
+    this.comparisonStatisticsLoading.set(true);
+    this.comparisonStatisticsError.set('');
+    const prefix = this.comparisonScope === 'prematch' ? '/prematch' : '';
+    this.http.get<MatchTeamStatistics>(
+      `${API_ROOT}${prefix}/matches/${encodeURIComponent(comparison.matchId)}/statistics`,
+      { params: { _: Date.now().toString() } },
+    ).pipe(
+      timeout(8000),
+      catchError((error: HttpErrorResponse) => {
+        this.comparisonStatisticsError.set(
+          error.status === 404
+            ? 'Za ove timove još nema pouzdane klupske statistike.'
+            : 'Statistika timova trenutno nije dostupna.',
+        );
+        return of(null);
+      }),
+    ).subscribe((payload) => {
+      if (payload) this.comparisonStatistics.set(payload);
+      this.comparisonStatisticsLoading.set(false);
+    });
   }
 
   private canRequest(): boolean {
@@ -508,6 +561,8 @@ export class SurebetApi {
     this.prematchHistoryBest = [];
     this.liveOpportunities = [];
     this.prematchOpportunities = [];
+    this.prematchValuebets = [];
+    this.prematchMiddlebets = [];
     this.bookmakers = [];
     this.bookmakerCatalog.set([]);
     this.liveEventTotal = 0;
@@ -526,6 +581,8 @@ export class SurebetApi {
       bestOdds: [...this.liveBest, ...this.prematchCurrentBest, ...this.prematchHistoryBest],
       opportunities: [...this.liveOpportunities, ...this.prematchOpportunities]
         .sort((left, right) => right.roi - left.roi),
+      valuebets: this.prematchValuebets,
+      middlebets: this.prematchMiddlebets,
       bookmakers: this.bookmakers,
       trend: [],
       liveEvents: this.liveEventTotal,
@@ -686,6 +743,59 @@ export class SurebetApi {
     };
   }
 
+  private toValuebet(row: Record<string, unknown>, index: number): ValueBetOpportunity {
+    const observedAt = String(row['observed_at'] ?? new Date().toISOString());
+    const parsed = Date.parse(observedAt);
+    const rawLine = row['line'] === null || row['line'] === undefined || row['line'] === ''
+      ? Number.NaN : Number(row['line']);
+    return {
+      id: String(row['id'] ?? `valuebet-${index}`),
+      matchId: String(row['match_id'] ?? ''),
+      sport: String(row['sport'] ?? ''),
+      fixture: `${String(row['home'] ?? 'Home')} — ${String(row['away'] ?? 'Away')}`,
+      league: String(row['league'] ?? ''),
+      kickoff: String(row['kickoff_utc'] ?? ''),
+      market: String(row['market_label'] ?? row['market'] ?? ''),
+      period: String(row['period'] ?? 'FT'),
+      line: Number.isFinite(rawLine) ? rawLine : null,
+      outcome: String(row['outcome'] ?? row['outcome_key'] ?? ''),
+      bookmaker: String(row['bookmaker'] ?? ''),
+      odds: Number(row['price'] ?? 0),
+      fairOdds: Number(row['fair_odds'] ?? 0),
+      fairProbability: Number(row['fair_probability'] ?? 0) * 100,
+      expectedValue: Number(row['expected_value'] ?? 0) * 100,
+      referenceBookmakers: Number(row['reference_bookmakers'] ?? 0),
+      ageSeconds: Number.isFinite(parsed) ? Math.max(0, Math.round((Date.now() - parsed) / 1000)) : 0,
+    };
+  }
+
+  private toMiddlebet(row: Record<string, unknown>, index: number): MiddleBetOpportunity {
+    const rawLegs = Array.isArray(row['legs']) ? row['legs'] as Record<string, unknown>[] : [];
+    const observed = rawLegs.map((leg) => Date.parse(String(leg['observed_at'] ?? ''))).filter(Number.isFinite);
+    return {
+      id: String(row['id'] ?? `middlebet-${index}`),
+      matchId: String(row['match_id'] ?? ''),
+      sport: String(row['sport'] ?? ''),
+      fixture: `${String(row['home'] ?? 'Home')} — ${String(row['away'] ?? 'Away')}`,
+      league: String(row['league'] ?? ''),
+      kickoff: String(row['kickoff_utc'] ?? ''),
+      market: String(row['market_label'] ?? row['market'] ?? ''),
+      period: String(row['period'] ?? 'FT'),
+      gap: Number(row['middle_gap'] ?? 0),
+      hitRoi: Number(row['hit_roi'] ?? 0) * 100,
+      missRoi: Number(row['miss_roi'] ?? 0) * 100,
+      ageSeconds: observed.length ? Math.max(0, Math.round((Date.now() - Math.min(...observed)) / 1000)) : 0,
+      legs: rawLegs.map((leg) => ({
+        label: String(leg['outcome'] ?? leg['outcome_key'] ?? ''),
+        bookmaker: String(leg['bookmaker'] ?? ''),
+        odds: Number(leg['price'] ?? 0),
+        line: leg['line'] !== null && leg['line'] !== undefined && leg['line'] !== ''
+          && Number.isFinite(Number(leg['line'])) ? Number(leg['line']) : null,
+        country: this.countryForBookmaker(String(leg['bookmaker'] ?? '')),
+      })),
+    };
+  }
+
   private toComparison(payload: Record<string, unknown>, fallback: BestOddsMarket): MatchComparison {
     const match = (payload['match'] ?? {}) as Record<string, unknown>;
     const markets = Array.isArray(payload['markets']) ? (payload['markets'] as Record<string, unknown>[]) : [];
@@ -711,6 +821,9 @@ export class SurebetApi {
                 odds: Number(offer['price'] ?? 0),
                 observedAt: String(offer['observed_at'] ?? ''),
                 best: Boolean(offer['is_best']),
+                sourceMatchId: offer['source_match_id'] === null || offer['source_match_id'] === undefined
+                  ? null
+                  : String(offer['source_match_id']),
               }))
               .sort((left, right) => right.odds - left.odds),
           })),
@@ -734,8 +847,8 @@ export class SurebetApi {
         outcomes: item.selections.map((selection) => ({
           label: selection.label,
           offers: [
-            { bookmaker: selection.bookmaker, odds: selection.odds, observedAt: selection.observedAt, best: true },
-            { bookmaker: 'Druga kladionica', odds: Math.max(1.01, selection.odds - 0.12), observedAt: selection.observedAt, best: false },
+            { bookmaker: selection.bookmaker, odds: selection.odds, observedAt: selection.observedAt, best: true, sourceMatchId: null },
+            { bookmaker: 'Druga kladionica', odds: Math.max(1.01, selection.odds - 0.12), observedAt: selection.observedAt, best: false, sourceMatchId: null },
           ],
         })),
       }],
