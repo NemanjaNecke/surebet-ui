@@ -168,6 +168,7 @@ export interface TeamStatisticsSide {
 
 export interface MatchTeamStatistics {
   provider: string;
+  sport?: string;
   updated_at: string;
   source_match_id: string;
   provider_match_id: string;

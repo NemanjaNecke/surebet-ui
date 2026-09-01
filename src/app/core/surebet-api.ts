@@ -508,7 +508,7 @@ export class SurebetApi {
     const comparison = this.comparison();
     if (!comparison || this.comparisonStatistics() || this.comparisonStatisticsLoading()) return;
     if (this.mode() === 'preview' || this.mode() === 'offline') {
-      this.comparisonStatisticsError.set('Statistika timova nije dostupna u demo prikazu.');
+      this.comparisonStatisticsError.set('Statistika nije dostupna u demo prikazu.');
       return;
     }
     this.comparisonStatisticsLoading.set(true);
@@ -522,8 +522,8 @@ export class SurebetApi {
       catchError((error: HttpErrorResponse) => {
         this.comparisonStatisticsError.set(
           error.status === 404
-            ? 'Za ove timove još nema pouzdane klupske statistike.'
-            : 'Statistika timova trenutno nije dostupna.',
+            ? 'Za ovaj meč još nema pouzdane statistike.'
+            : 'Statistika trenutno nije dostupna.',
         );
         return of(null);
       }),

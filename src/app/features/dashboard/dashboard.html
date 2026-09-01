@@ -410,7 +410,7 @@
         </p>
         <div class="comparison-tabs" role="tablist" aria-label="Detalji utakmice">
           <button role="tab" [class.active]="comparisonTab() === 'odds'" (click)="setComparisonTab('odds')">Kvote</button>
-          <button role="tab" [class.active]="comparisonTab() === 'statistics'" (click)="setComparisonTab('statistics')">Statistika timova</button>
+          <button role="tab" [class.active]="comparisonTab() === 'statistics'" (click)="setComparisonTab('statistics')">Statistika</button>
         </div>
         @if (comparisonTab() === 'odds') {
           <div class="odds-view-toggle" role="group" aria-label="Prikaz kvota">
@@ -451,12 +451,12 @@
           <p class="drawer-note">Najbolje kvote su označene. Konačnu kvotu uvek proverite kod kladionice.</p>
         } @else if (comparisonTab() === 'statistics') {
           @if (api.comparisonStatisticsLoading()) {
-            <div class="statistics-state"><i></i><strong>Učitavamo dnevnu statistiku timova…</strong></div>
+            <div class="statistics-state"><i></i><strong>Učitavamo dnevnu statistiku…</strong></div>
           } @else if (api.comparisonStatistics(); as statistics) {
             <div class="statistics-meta">
               <div><span>Takmičenje</span><strong>{{ statistics.competition }}</strong></div>
               <div><span>Sezona</span><strong>{{ statistics.season || '—' }}</strong></div>
-              <div><span>Stadion</span><strong>{{ statistics.stadium?.name || '—' }}@if (statistics.stadium?.city) { · {{ statistics.stadium?.city }} }</strong></div>
+              <div><span>Lokacija</span><strong>{{ statistics.stadium?.name || '—' }}@if (statistics.stadium?.city) { · {{ statistics.stadium?.city }} }</strong></div>
               <div><span>Osveženo</span><strong>{{ statistics.updated_at | date: 'dd.MM. · HH:mm' }}</strong></div>
             </div>
             <div class="team-statistics detailed">
@@ -480,7 +480,7 @@
                     <span><b>{{ entry.last_five.wins }}</b>P</span>
                     <span><b>{{ entry.last_five.draws }}</b>N</span>
                     <span><b>{{ entry.last_five.losses }}</b>I</span>
-                    <span><b>{{ entry.last_five.goals_for }}:{{ entry.last_five.goals_against }}</b>Golovi</span>
+                    <span><b>{{ entry.last_five.goals_for }}:{{ entry.last_five.goals_against }}</b>{{ statistics.sport === 'football' ? 'Golovi' : 'Rezultat' }}</span>
                   </div>
                   @if (entry.standing; as standing) {
                     <div class="standing-row">
@@ -503,9 +503,9 @@
                 <p>Nema zabeleženih međusobnih susreta.</p>
               }
             </section>
-            <p class="drawer-note">Jedan dnevni Sportradar snapshot: forma klubova, tabela i H2H za ovaj konkretan meč.</p>
+            <p class="drawer-note">Jedan dnevni Sportradar snapshot: forma učesnika, rangiranje kada postoji i H2H za ovaj konkretan meč.</p>
           } @else {
-            <div class="statistics-state error"><strong>{{ api.comparisonStatisticsError() || 'Za ove timove još nema pouzdane klupske statistike.' }}</strong></div>
+            <div class="statistics-state error"><strong>{{ api.comparisonStatisticsError() || 'Za ovaj meč još nema pouzdane statistike.' }}</strong></div>
           }
         }
       }
