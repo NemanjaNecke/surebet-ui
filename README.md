@@ -10,7 +10,7 @@ It provides:
 - live surebets across 1X2, two-way, double-chance, totals, and BTTS markets;
 - prematch surebets across every normalized complementary market and exact line;
 - a match drawer containing every available bookmaker offer;
-- a daily cached club-statistics tab with form, standings, managers, venue, and H2H;
+- a daily cached all-sports statistics tab with form, rankings, venue, and H2H;
 - a separate Esports category covering every canonical esports subtype;
 - an exact surebet stake split and guaranteed-return calculator;
 - Auth0 login and bearer-token attachment for protected API routes;
