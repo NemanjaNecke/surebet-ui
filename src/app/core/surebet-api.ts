@@ -73,9 +73,6 @@ export class SurebetApi {
   private prematchCurrentBest: BestOddsMarket[] = this.restored?.snapshot.bestOdds.filter(
     (item) => item.scope === 'prematch' && !item.historical,
   ) ?? [];
-  private prematchHistoryBest: BestOddsMarket[] = this.restored?.snapshot.bestOdds.filter(
-    (item) => item.scope === 'prematch' && item.historical,
-  ) ?? [];
   private liveOpportunities: SurebetOpportunity[] = this.restored?.snapshot.opportunities.filter(
     (item) => item.scope === 'live',
   ) ?? [];
@@ -90,7 +87,6 @@ export class SurebetApi {
   private liveEventTotal = this.restored?.snapshot.liveEvents ?? (authEnabled ? 0 : PREVIEW_SNAPSHOT.liveEvents);
   private prematchEventTotal = this.restored?.snapshot.prematchEvents ?? (authEnabled ? 0 : PREVIEW_SNAPSHOT.prematchEvents);
   private prematchCurrentTotal = this.prematchEventTotal;
-  private prematchHistoryTotal = 0;
   private liveInFlight = false;
   private liveAuxInFlight = false;
   private prematchInFlight = false;
@@ -216,19 +212,12 @@ export class SurebetApi {
     const prematchParams = new HttpParams()
       .set('limit', PREMATCH_PAGE_LIMIT)
       .set('countries', this.countryCodes.join(','));
-    const prematchWindow = prematchParams
-      .set('include_history', 'true')
-      .set('history_only', 'true')
-      .set('history_hours', '168');
     forkJoin({
       liveOdds: this.http
         .get<CollectionResponse>(`${API_ROOT}/odds/live/best`, { params: liveParams })
         .pipe(timeout(8000)),
       prematchOdds: this.http
         .get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: prematchParams })
-        .pipe(timeout(8000)),
-      prematchHistory: this.http
-        .get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: prematchWindow })
         .pipe(timeout(8000)),
       liveSurebets: this.http
         .get<CollectionResponse>(`${API_ROOT}/surebets/live`, { params: liveParams })
@@ -248,16 +237,11 @@ export class SurebetApi {
           this.liveBest = payload.liveOdds.items.flatMap((row, index) =>
             this.toBestOddsMarkets(row, index, 'live'),
           );
-          const prematchRows = [...payload.prematchOdds.items, ...payload.prematchHistory.items];
           this.prematchCurrentBest = payload.prematchOdds.items.flatMap((row, index) =>
             this.toBestOddsMarkets(row, index, 'prematch'),
           );
-          this.prematchHistoryBest = payload.prematchHistory.items.flatMap((row, index) =>
-            this.toBestOddsMarkets(row, index, 'prematch'),
-          );
           this.liveEventTotal = payload.liveOdds.total ?? payload.liveOdds.count;
-          this.prematchEventTotal = (payload.prematchOdds.total ?? payload.prematchOdds.count)
-            + (payload.prematchHistory.total ?? payload.prematchHistory.count);
+          this.prematchEventTotal = payload.prematchOdds.total ?? payload.prematchOdds.count;
           this.liveOpportunities = payload.liveSurebets.items.map((row, index) =>
             this.toOpportunity(row, index, 'live'),
           );
@@ -383,7 +367,7 @@ export class SurebetApi {
         );
         this.prematchCurrentTotal = payload.total ?? payload.count;
         this.prematchTotal.set(this.prematchCurrentTotal);
-        this.prematchEventTotal = this.prematchCurrentTotal + this.prematchHistoryTotal;
+        this.prematchEventTotal = this.prematchCurrentTotal;
         return this.combinedSnapshot();
       }),
       catchError((error: HttpErrorResponse) => {
@@ -402,35 +386,10 @@ export class SurebetApi {
       if (snapshot) this.lastUpdated.set(new Date());
       this.prematchInFlight = false;
       if (foreground) this.prematchLoading.set(false);
-      // Current prices are the interactive path. Load historical fixtures only
-      // after they have rendered so the two large prematch queries do not
-      // compete for the same database resources and blank the dashboard.
-      if (!limited.has('kickoff_from') && !limited.has('kickoff_to') && !limited.has('offset')) {
-        this.refreshPrematchHistory(limited);
-      }
       if (this.prematchRefreshQueued) {
         this.prematchRefreshQueued = false;
         this.refreshPrematch(false);
       }
-    });
-  }
-
-  private refreshPrematchHistory(limited: HttpParams): void {
-    const params = limited
-      .set('include_history', 'true')
-      .set('history_only', 'true')
-      .set('history_hours', '168');
-    this.http.get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params }).pipe(
-      timeout(20_000),
-      catchError(() => of(null)),
-    ).subscribe((payload) => {
-      if (!payload) return;
-      this.prematchHistoryBest = payload.items.flatMap((row, index) =>
-        this.toBestOddsMarkets(row, index, 'prematch'),
-      );
-      this.prematchHistoryTotal = payload.total ?? payload.count;
-      this.prematchEventTotal = this.prematchCurrentTotal + this.prematchHistoryTotal;
-      this.publishSnapshot(this.combinedSnapshot());
     });
   }
 
@@ -554,7 +513,6 @@ export class SurebetApi {
     sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
     this.liveBest = [];
     this.prematchCurrentBest = [];
-    this.prematchHistoryBest = [];
     this.liveOpportunities = [];
     this.prematchOpportunities = [];
     this.prematchValuebets = [];
@@ -565,7 +523,6 @@ export class SurebetApi {
     this.prematchEventTotal = 0;
     this.prematchCurrentTotal = 0;
     this.prematchTotal.set(0);
-    this.prematchHistoryTotal = 0;
     this.hasSuccessfulSnapshot = false;
     this.snapshotState.set(EMPTY_SNAPSHOT);
     this.mode.set('loading');
@@ -574,7 +531,7 @@ export class SurebetApi {
 
   private combinedSnapshot(): DashboardSnapshot {
     return {
-      bestOdds: [...this.liveBest, ...this.prematchCurrentBest, ...this.prematchHistoryBest],
+      bestOdds: [...this.liveBest, ...this.prematchCurrentBest],
       opportunities: [...this.liveOpportunities, ...this.prematchOpportunities]
         .sort((left, right) => right.roi - left.roi),
       valuebets: this.prematchValuebets,

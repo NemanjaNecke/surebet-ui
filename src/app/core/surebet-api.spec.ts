@@ -31,11 +31,7 @@ describe('SurebetApi', () => {
     expect(prematchRequest.request.params.get('limit')).toBe('12');
     expect(prematchRequest.request.params.get('countries')).toBe('RS,BA');
     prematchRequest.flush({ count: 1, total: 1834, items: [{ ...bestMatch, match_id: 'match-2' }] });
-    const historyRequest = http.expectOne((request) =>
-      request.url.endsWith('/odds/prematch/best') && request.params.get('history_only') === 'true');
-    expect(historyRequest.request.params.get('include_history')).toBe('true');
-    expect(historyRequest.request.params.get('history_hours')).toBe('168');
-    historyRequest.flush({ count: 0, total: 12, items: [] });
+    http.expectNone((request) => request.params.get('history_only') === 'true');
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 1, items: [{
       match_id: 'match-1', market: 'FT.HANDICAP', market_label: 'Hendikep', period: 'FT', line: -2.5,
       home: 'Home', away: 'Away', league: 'League',
@@ -100,7 +96,7 @@ describe('SurebetApi', () => {
     expect(api.snapshot().middlebets[0]).toMatchObject({ gap: 0.5, hitRoi: 91, missRoi: -4.5 });
     expect(api.snapshot().bookmakers[0].events).toBe(18);
     expect(api.snapshot().liveEvents).toBe(907);
-    expect(api.snapshot().prematchEvents).toBe(1846);
+    expect(api.snapshot().prematchEvents).toBe(1834);
 
     api.refresh('live');
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 0, items: [] });
@@ -122,9 +118,7 @@ describe('SurebetApi', () => {
     http.expectOne((request) =>
       request.url.endsWith('/odds/prematch/best') && !request.params.has('include_history'))
       .flush({ count: 0, items: [] });
-    http.expectOne((request) =>
-      request.url.endsWith('/odds/prematch/best') && request.params.get('history_only') === 'true')
-      .flush({ count: 0, items: [] });
+    http.expectNone((request) => request.params.get('history_only') === 'true');
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/prematch')).flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/valuebets/prematch')).flush({ count: 0, items: [] });
