@@ -194,7 +194,15 @@ export class SurebetApi {
     if (query.search) params = params.set('search', query.search);
     if (query.kickoffFrom) params = params.set('kickoff_from', query.kickoffFrom);
     if (query.kickoffTo) params = params.set('kickoff_to', query.kickoffTo);
+    if (params.toString() === this.prematchQuery.toString()) return;
     this.prematchQuery = params;
+    // Never render a page and total that belong to the previous filter while
+    // the requested page is still loading (or if that request fails).
+    this.prematchCurrentBest = [];
+    this.prematchCurrentTotal = 0;
+    this.prematchTotal.set(0);
+    this.snapshotState.set(this.combinedSnapshot());
+    this.prematchLoading.set(true);
     if (this.prematchInFlight) {
       this.prematchRefreshQueued = true;
       return;
@@ -362,6 +370,7 @@ export class SurebetApi {
     this.http.get<CollectionResponse>(`${API_ROOT}/odds/prematch/best`, { params: limited }).pipe(
       timeout(15_000),
       map((payload) => {
+        if (limited.toString() !== this.prematchQuery.toString()) return null;
         this.prematchCurrentBest = payload.items.flatMap((row, index) =>
           this.toBestOddsMarkets(row, index, 'prematch'),
         );
@@ -385,11 +394,12 @@ export class SurebetApi {
       }
       if (snapshot) this.lastUpdated.set(new Date());
       this.prematchInFlight = false;
-      if (foreground) this.prematchLoading.set(false);
       if (this.prematchRefreshQueued) {
         this.prematchRefreshQueued = false;
         this.refreshPrematch(false);
+        return;
       }
+      this.prematchLoading.set(false);
     });
   }
 
@@ -431,7 +441,7 @@ export class SurebetApi {
     this.comparisonStatisticsError.set('');
     this.comparisonStatisticsLoading.set(false);
     this.comparisonScope = item.scope;
-    if (this.mode() === 'preview' || this.mode() === 'offline') {
+    if (!authEnabled) {
       this.comparison.set(this.previewComparison(item));
       return;
     }
@@ -466,8 +476,8 @@ export class SurebetApi {
   loadComparisonStatistics(): void {
     const comparison = this.comparison();
     if (!comparison || this.comparisonStatistics() || this.comparisonStatisticsLoading()) return;
-    if (this.mode() === 'preview' || this.mode() === 'offline') {
-      this.comparisonStatisticsError.set('Statistika nije dostupna u demo prikazu.');
+    if (!authEnabled) {
+      this.comparisonStatisticsError.set('Trenutno ne možemo da učitamo statistiku.');
       return;
     }
     this.comparisonStatisticsLoading.set(true);
@@ -799,10 +809,13 @@ export class SurebetApi {
         line: item.line,
         outcomes: item.selections.map((selection) => ({
           label: selection.label,
-          offers: [
-            { bookmaker: selection.bookmaker, odds: selection.odds, observedAt: selection.observedAt, best: true, sourceMatchId: null },
-            { bookmaker: 'Druga kladionica', odds: Math.max(1.01, selection.odds - 0.12), observedAt: selection.observedAt, best: false, sourceMatchId: null },
-          ],
+          offers: [{
+            bookmaker: selection.bookmaker,
+            odds: selection.odds,
+            observedAt: selection.observedAt,
+            best: true,
+            sourceMatchId: null,
+          }],
         })),
       }],
     };

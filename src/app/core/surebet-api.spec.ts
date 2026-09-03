@@ -98,6 +98,16 @@ describe('SurebetApi', () => {
     expect(api.snapshot().liveEvents).toBe(907);
     expect(api.snapshot().prematchEvents).toBe(1834);
 
+    api.openComparison(api.snapshot().bestOdds[0]);
+    expect(api.comparison()?.markets.flatMap((market) => market.outcomes)
+      .every((outcome) => outcome.offers.length === 1)).toBe(true);
+    expect(api.comparison()?.markets.flatMap((market) => market.outcomes)
+      .flatMap((outcome) => outcome.offers)
+      .some((offer) => offer.bookmaker === 'Druga kladionica')).toBe(false);
+    api.loadComparisonStatistics();
+    expect(api.comparisonStatisticsError()).toBe('Trenutno ne možemo da učitamo statistiku.');
+    api.closeComparison();
+
     api.refresh('live');
     http.expectOne((request) => request.url.endsWith('/odds/live/best')).flush({ count: 0, items: [] });
     http.expectOne((request) => request.url.endsWith('/surebets/live')).flush({ count: 0, items: [] });
