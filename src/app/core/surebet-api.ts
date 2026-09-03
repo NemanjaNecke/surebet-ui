@@ -519,12 +519,8 @@ export class SurebetApi {
       { params: { _: Date.now().toString() } },
     ).pipe(
       timeout(8000),
-      catchError((error: HttpErrorResponse) => {
-        this.comparisonStatisticsError.set(
-          error.status === 404
-            ? 'Za ovaj meč još nema pouzdane statistike.'
-            : 'Statistika trenutno nije dostupna.',
-        );
+      catchError((_error: HttpErrorResponse) => {
+        this.comparisonStatisticsError.set('Trenutno ne možemo da učitamo statistiku.');
         return of(null);
       }),
     ).subscribe((payload) => {
