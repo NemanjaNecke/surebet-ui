@@ -6,7 +6,7 @@
   "workers_dev": true,
   "routes": [
     {
-      "pattern": "api.kvotaradar.online/*",
+      "pattern": "api.kvotaradar.online/api/v1/*",
       "zone_name": "kvotaradar.online"
     }
   ],
