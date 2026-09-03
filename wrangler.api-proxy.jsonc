@@ -6,8 +6,8 @@
   "workers_dev": true,
   "routes": [
     {
-      "pattern": "api.kvotaradar.online",
-      "custom_domain": true
+      "pattern": "api.kvotaradar.online/*",
+      "zone_name": "kvotaradar.online"
     }
   ],
   "vpc_services": [
